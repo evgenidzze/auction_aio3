@@ -8,7 +8,7 @@ from typing import List
 
 from aiogram import Router, types, F
 from aiogram.enums import ChatMemberStatus
-from aiogram.filters import CommandStart, Command
+from aiogram.filters import CommandStart, Command, BaseFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -1216,7 +1216,8 @@ async def user_chat_menu(call: types.CallbackQuery, state: FSMContext):
             token = await create_payment_token(usd=1)
             await update_chat_sql(user_chat_id, paypal_token=token)
         kb = await payment_kb(token, activate_btn_text=_('🔐 Активувати'),
-                              callback_data=f'bot_subscription_update_{user_chat_id}_{token}', back_btn=back_my_channels_groups)
+                              callback_data=f'bot_subscription_update_{user_chat_id}_{token}',
+                              back_btn=back_my_channels_groups)
         await call.message.edit_text(text=_('🔴 Статус: не активний.\n'
                                             'Для активації оформіть підписку, натиснувши кнопку «🔐 Активувати» нижче.\n'
                                             'Після активації натисніть 🔄 Оновити статус.'),
@@ -1236,11 +1237,16 @@ async def update_bot_subscription_status(call, state: FSMContext):
         return
 
 
+class IsPrivateChatFilter(BaseFilter):
+    async def __call__(self, message: types.Message) -> bool:
+        return message.chat.type == "private"
+
+
 def register_client_handlers(r: Router):
-    r.message.register(start, CommandStart())
+    r.message.register(start, CommandStart(), IsPrivateChatFilter())
     r.callback_query.register(main_menu, FSMClient.language)
     r.callback_query.register(main_menu, F.data == 'main_menu')
-    r.message.register(main_menu, Command('main_menu'))
+    r.message.register(main_menu, Command('main_menu'), IsPrivateChatFilter())
     r.callback_query.register(help_, F.data == 'help')
     r.callback_query.register(auction_menu, F.data == 'auction')
     r.callback_query.register(my_auctions, F.data == 'my_auctions')

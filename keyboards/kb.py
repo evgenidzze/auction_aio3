@@ -18,7 +18,7 @@ group_channels_btn = InlineKeyboardButton(text='👥 Групи та канал�
 manage_panel_btn = InlineKeyboardButton(text='🔧 Панель керування', callback_data='create_ad')
 pro_sub_btn = InlineKeyboardButton(text='💎 Pro-підписка', callback_data='create_ad')
 main_kb = InlineKeyboardMarkup(
-    inline_keyboard=[[auction_btn, create_advert_btn], [group_channels_btn, chats_btn], [pro_sub_btn],
+    inline_keyboard=[[auction_btn, create_advert_btn], [group_channels_btn], [chats_btn], [pro_sub_btn],
                      [help_btn]])
 
 my_ads_btn = InlineKeyboardButton(text='📋 Мої оголошення', callback_data='my_ads')
