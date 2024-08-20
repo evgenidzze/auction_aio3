@@ -1,0 +1,740 @@
+# English translations for PROJECT.
+# Copyright (C) 2024 ORGANIZATION
+# This file is distributed under the same license as the PROJECT project.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2024.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: PROJECT VERSION\n"
+"Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
+"POT-Creation-Date: 2024-05-11 16:01+0300\n"
+"PO-Revision-Date: 2024-04-05 16:15+0300\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: en\n"
+"Language-Team: en <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1)\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.9.1\n"
+
+#: utils.py:28
+msgid ""
+"🏆 Вітаю! Ви перемогли у аукціоні <b>{desc}</b>\n"
+"Очікуйте повідомлення від продавця."
+msgstr ""
+"🏆 Congratulations! You won the auction <b>{desc}</b>\n"
+"Wait for a message from the seller."
+
+#: utils.py:35
+msgid ""
+"🏆 Аукціон <b>{desc}</b> завершено!\n"
+"Щоб зв'язатись з переможцем, оплатіть комісію."
+msgstr ""
+"🏆 Auction <b>{desc}</b> completed!\n"
+"To contact the winner, pay the commission."
+
+#: utils.py:42
+msgid "Ваш лот <b>{desc}...</b> завершився без ставок."
+msgstr "Your lot <b>{desc}...</b> has ended with no bids."
+
+#: utils.py:85
+msgid ""
+"<i>https://t.me/{username} - надіслав лот на модерацію.\n"
+"</i>"
+msgstr ""
+"<i>https://t.me/{username} - sent the lot for moderation.\n"
+"</i>"
+
+#: utils.py:91
+msgid "💬 Задати питання автору"
+msgstr "💬 Ask questions to the author"
+
+#: utils.py:94
+msgid ""
+"<i>⚠️ Ваш лот проходить модерацію...\n"
+"</i>"
+msgstr ""
+"<i>⚠️ Your lot is being moderated...\n"
+"</i>"
+
+#: utils.py:96
+msgid ""
+"<b>{description}</b>\n"
+"\n"
+"🏙 <b>Місто:</b> {city}\n"
+"\n"
+"👇 <b>Ставки учасників:</b>\n"
+"\n"
+"💰 <b>Стартова ціна:</b> {start_price} {currency}\n"
+"⏱ <b>Антиснайпер</b> {anti_sniper} хв.\n"
+msgstr ""
+"<b>{description}</b>\n"
+"\n"
+"🏙 <b>City:</b> {city}\n"
+"\n"
+"👇 <b>Participant bids:</b>\n"
+"\n"
+"💰 <b>Starting price:</b> {start_price} {currency}\n"
+"⏱ <b>Anti-sniper</b> {anti_sniper} min.\n"
+
+#: utils.py:104
+msgid ""
+"\n"
+"<a href='{photos_link}'><b>👉 Оглянути додаткові фото</b></a>"
+msgstr ""
+"\n"
+"<a href='{photos_link}'><b>👉 View more photos</b></a>"
+
+#: utils.py:131
+msgid "Отримати контакт"
+msgstr "Get contact"
+
+#: utils.py:152
+msgid "{old_text}    {bid_count} - {first_name} ставить {price}{currency}\n"
+msgstr "{old_text}    - {first_name} bet {price}{currency}\n"
+
+#: utils.py:155
+msgid ""
+"{first_part_caption}\n"
+"💰 {old_text}"
+msgstr ""
+
+#: handlers/client.py:59
+msgid "<b>Оберіть мову / Choose a language:</b>"
+msgstr ""
+
+#: handlers/client.py:73
+msgid "Напишіть ваше запитання:"
+msgstr "Write your question:"
+
+#: handlers/client.py:80
+msgid ""
+"Схоже ви намагались обмінятись контактними даними. Перефразуйте ваше "
+"запитання:"
+msgstr ""
+"It looks like you tried to exchange contact information. Please rephrase your "
+"question:"
+
+#: handlers/client.py:88
+msgid ""
+"✅ Власник лоту отримав ваше запитання!\n"
+"Очікуйте на відповідь."
+msgstr ""
+"✅ The owner of the lot has received your question!\n"
+"Wait for an answer."
+
+#: handlers/client.py:91
+msgid "💬 Ви отримали запитання по лоту <a href='{lot_link}'><b>{lot_desc}</b></a>"
+msgstr "💬 You received a question about lot <a href='{lot_link}'><b>{lot_desc}</b></a>"
+
+#: handlers/client.py:98
+msgid ""
+"Вітаю, <b>{first_name}!</b><a "
+"href='https://telegra.ph/file/3f6168cc5f94f115331ac.png'>⠀</a>\n"
+msgstr ""
+"Welcome, <b>{first_name}!</b><a "
+"href='https://telegra.ph/file/3f6168cc5f94f115331ac.png'>⠀</a>\n"
+
+#: handlers/client.py:112
+msgid "👇 Оберіть варіант:"
+msgstr "👇 Choose an option:"
+
+#: handlers/client.py:122
+msgid "👇 Оберіть запитання щоб відповісти або видалити:"
+msgstr "👇 Select a question to answer or delete:"
+
+#: handlers/client.py:125 handlers/client.py:164
+msgid "🤷🏻‍♂️ У вас немає повідомлень."
+msgstr "🤷🏻‍♂️ You have no messages."
+
+#: handlers/client.py:136
+msgid ""
+"👇 Надішліть відповідь або видаліть запитання:\n"
+"<b>{question_text}</b>"
+msgstr ""
+"👇 Submit a reply or delete the question:\n"
+"<b>{question_text}</b>"
+
+#: handlers/client.py:146 handlers/client.py:187
+msgid "✅ Повідомлення видалено"
+msgstr "✅ Message deleted."
+
+#: handlers/client.py:159 handlers/client.py:161
+msgid "👇 Оберіть відповідь щоб прочитати:"
+msgstr "👇 Select an answer to read:"
+
+#: handlers/client.py:175
+msgid ""
+"📦 Лот: <a href=\"{lot_link}\"><b>{lot_desc}</b></a>\n"
+"\n"
+"Відповідь: <i>{answer_text}</i>"
+msgstr ""
+"📦 Lot: <a href=\"{lot_link}\"><b>{lot_desc}</b></a>\n"
+"\n"
+"Answer: <i>{answer_text}</i>"
+
+#: handlers/client.py:197
+msgid ""
+"Схоже ви намагались обмінятись контактними даними. Перефразуйте вашу "
+"відповідь:"
+msgstr ""
+"It looks like you tried to exchange contact information. Please rephrase your "
+"answer:"
+
+#: handlers/client.py:207
+msgid ""
+"Автор лоту <a href='{lot_link}'><b>{lot_desc}</b></a> надіслав вам "
+"відповідь."
+msgstr ""
+"The author of lot <a href='{lot_link}'><b>{lot_desc}</b></a> sent you "
+"answer."
+
+#: handlers/client.py:219
+msgid "Оберіть існуючий аукціон або створіть новий:"
+msgstr "Choose an existing auction or create a new one:"
+
+#: handlers/client.py:226
+msgid "Вас було заблоковано за порушення правил."
+msgstr "You have been blocked for violating the rules."
+
+#: handlers/client.py:229
+msgid "🌆 Вкажіть ваше місто:"
+msgstr "🌆 Type your city:"
+
+#: handlers/client.py:237
+msgid "🫰🏼 Оберіть валюту:"
+msgstr "🫰🏼 Choose a currency:"
+
+#: handlers/client.py:245 handlers/client.py:444
+msgid ""
+"📝 Напишіть опис для лоту:\n"
+"\n"
+"<i>Наприклад: Навушники Marshall Major IV Bluetooth Black</i>"
+msgstr ""
+"📝 Write a description for the lot:\n"
+"\n"
+"<i>For example: Headphones Marshall Major IV Bluetooth Black</i>"
+
+#: handlers/client.py:256 handlers/client.py:454
+msgid "💰 Вкажіть стартову ціну в {currency}:"
+msgstr "💰 Enter the starting price in {currency}:"
+
+#: handlers/client.py:265 handlers/client.py:469
+msgid ""
+"Напишіть крок ставки через пробіл (від 1 до 3 кроків):\n"
+"Наприклад: 500 1000 1500"
+msgstr ""
+"Write the bid steps with a space (from 1 to 3 steps):\n"
+"For example: 500 1000 1500"
+
+#: handlers/client.py:268 handlers/client.py:488
+msgid "❌ Потрібно ввести числове значення."
+msgstr "❌ You need to enter a numerical value."
+
+#: handlers/client.py:277 handlers/client.py:464
+msgid "🕙 Скільки буде тривати аукціон?"
+msgstr "🕙 How long will the auction last?"
+
+#: handlers/client.py:279 handlers/client.py:503
+msgid "❌ Потрібно ввести числові значення."
+msgstr "❌ You need to enter a numerical value."
+
+#: handlers/client.py:284 handlers/client.py:437
+msgid ""
+"📸 Надішліть фото і відео:\n"
+"<i>До 5 фото та до 1 відео</i>"
+msgstr ""
+"📸 Send photos and videos:\n"
+"<i>Up to 5 photos and up to 1 video</i>"
+
+#: handlers/client.py:309
+msgid "❌ Надішліть фото або відео."
+msgstr "❌ Send a photo or video."
+
+#: handlers/client.py:320
+msgid ""
+"❌ Максимум 5 фото і 1 відео.\n"
+"Надішліть ще раз ваші медіафайли:"
+msgstr ""
+"❌ Maximum of 5 photos and 1 video.\n"
+"Resubmit your media files:"
+
+#: handlers/client.py:328
+msgid ""
+"⬆️ Лот готовий до публікації!\n"
+"Перевірте всю інформацію і натисніть <b>✅ Опублікувати</b>, коли будете "
+"готові."
+msgstr ""
+"⬆️ The lot is ready for publication!\n"
+"Check all information and press <b> ✅ Publish</b> when you are ready."
+
+#: handlers/client.py:332
+msgid ""
+"Лот готовий!\n"
+"Опублікувати?"
+msgstr ""
+"The lot is ready!\n"
+"Publish?"
+
+#: handlers/client.py:359
+msgid ""
+"✅ Лот відправлено не модерацію, незабаром він з'явиться у каналі <b><a "
+"href='{invite_link}'>{username}</a></b>."
+msgstr ""
+"✅ The lot has been sent for moderation, it will soon appear in the "
+"channel <b><a href='{invite_link}'>{username}</a></b>."
+
+#: handlers/client.py:380
+msgid ""
+"✅ Оголошення відправлено на модерацію, незабаром воно з'явиться у каналі "
+"<b><a href='{invite_link}'>{username}</a></b>."
+msgstr ""
+"✅ The ad has been sent for moderation, it will soon appear in the channel "
+"<b><a href='{invite_link}'>{username}</a></b>."
+
+#: handlers/client.py:398
+msgid "❌ На свій лот не можна робити ставку."
+msgstr "❌ You cannot place a bet on your own lot."
+
+#: handlers/client.py:398
+msgid ""
+"💸 Нова ставка на ваш лот!\n"
+"\n"
+"<a href='{lot_post}'><b>👉 Перейти до лоту.</b></a>"
+msgstr ""
+"💸 New bid on your lot!\n"
+"\n"
+"{lot_post}"
+
+#: handlers/client.py:405
+msgid ""
+"👋 Вашу ставку на лот <a href='{lot_post}'><b>{lot_name}</b></a> перебили."
+"\n"
+"\n"
+"<a href='{lot_post}'><b>👉 Перейти до лоту.</b></a>"
+msgstr ""
+"👋 Your bid for lot <a href='{lot_post}'><b>{lot_name}</b></a> is outbid."
+"\n"
+"\n"
+"<a href='{lot_post}'><b>👉 Go to lot.</b></a>"
+
+#: handlers/client.py:410
+msgid "✅ Ставку прийнято!"
+msgstr "✅ Bid is accepted!"
+
+#: handlers/client.py:412
+msgid "Лот ще не опубліковано."
+msgstr "The lot is not published."
+
+#: handlers/client.py:414
+msgid "❌ Аукціон закінчено"
+msgstr "❌ Auction is over"
+
+#: handlers/client.py:432
+msgid "Бажаєте видалити лот?"
+msgstr "Do you want to delete a lot?"
+
+#: handlers/client.py:475
+msgid "Надішліть нову назву міста:"
+msgstr "Send a new name for the city:"
+
+#: handlers/client.py:522
+msgid "✅ Запит на видалення створено."
+msgstr "✅ Deletion request created."
+
+#: handlers/client.py:525
+msgid ""
+"<b>⚠️ Користувач {url} хоче видалити лот:\n"
+"</b>{lot_link}"
+msgstr ""
+"<b>⚠️ User {url} wants to delete lot:\n"
+"</b>{lot_link}"
+
+#: handlers/client.py:529 handlers/client.py:625
+msgid "✅ Лот видалено."
+msgstr "✅ Lot deleted."
+
+#: handlers/client.py:543
+msgid "До завершення {hours}год, {minutes}хв"
+msgstr "Time to complete: {hours}hr, {minutes}min"
+
+#: handlers/client.py:545
+msgid "До завершення {days} день, {hours}год, {minutes}хв"
+msgstr "Time to complete: {days}d, {hours}hr, {minutes}min"
+
+#: handlers/client.py:548
+msgid "До завершення {days} дні(-в), {hours}год, {minutes}хв"
+msgstr "Time to complete: {days}d, {hours}hr, {minutes}min"
+
+#: handlers/client.py:552
+msgid "Лот не опублікований."
+msgstr "The lot is not published."
+
+#: handlers/client.py:581
+msgid ""
+"✅ Готово!\n"
+"Лот <b><a href='{msg_url}'>{desc}...</a></b> опубліковано в каналі <b><a "
+"href='{channel_link}'>{channel_name}</a></b>"
+msgstr ""
+"✅ It's done!\n"
+"Lot <b><a href='{msg_url}'>{desc}...</a></b> has been published in the "
+"channel <b><a href='{channel_link}'>{channel_name}</a></b>"
+
+#: handlers/client.py:591 handlers/client.py:603
+msgid "Лот вже опубліковано."
+msgstr "The lot has already been published."
+
+#: handlers/client.py:593 handlers/client.py:613
+msgid "Лот вже відхилено."
+msgstr "The lot has already been rejected."
+
+msgid ""
+"✅ Готово!\n"
+"Оголошення <b><a href='{msg_url}'>{desc}...</a></b> опубліковано в каналі"
+" <b><a href='{channel_link}'>{channel_name}</a></b>"
+msgstr ""
+" ✅ Done!\n"
+"Ad <b><a href='{msg_url}'>{desc}...</a></b> has been posted to the channel"
+" <b><a href='{channel_link}'>{channel_name}</a></b>"
+
+msgid "Оголошення вже опубліковано."
+msgstr "The ad has already been published."
+
+msgid "Оголошення вже відхилено."
+msgstr "The ad has already been rejected."
+
+#: handlers/client.py:609
+msgid "❗️Нажаль ваш лот <b>{desc}...</b> не пройшов модерацію."
+msgstr "❗️Unfortunately, your lot <b>{desc}...</b> has not been moderated."
+
+msgid "❗️Нажаль ваше оголошення <b>{desc}...</b> не пройшло модерацію."
+msgstr "❗️Unfortunately, your ad <b>{desc}...</b> has not passed moderation."
+
+#: handlers/client.py:624
+msgid "✅ Ваш лот <b>{desc}...</b> видалено"
+msgstr "✅ Your lot <b>{desc}...</b> has been removed"
+
+#: handlers/client.py:630
+msgid ""
+"❌ Ваш лот <b>{desc}...</b> не видалено.\n"
+"Запит відхилено."
+msgstr ""
+"❌ Your lot <b>{desc}...</b> has not been deleted.\n"
+"The request has been rejected."
+
+#: handlers/client.py:632
+msgid "✅ Видалення відхилено."
+msgstr "✅ Deletion rejected."
+
+#: handlers/client.py:636
+msgid "Запит вже оброблений."
+msgstr "The request has already been processed."
+
+#: handlers/client.py:642
+msgid ""
+"⏱ Ваш поточний час антиснайпингу - {minute}хв.\n"
+"Якщо хочете змінити - оберіть варіант нижче:"
+msgstr ""
+"⏱ Your current anti-sniper time is {minute}min.\n"
+"If you want to change it, select the option below:"
+
+#: handlers/client.py:650
+msgid "✅ Час антиснайпингу змінено на {minute}хв"
+msgstr "✅ Anti-sniper time changed to {minute}min"
+
+#: handlers/client.py:656
+msgid ""
+"По всім запитанням @Oleksandr_Polis\n"
+"\n"
+"<i>Що таке <a href='https://telegra.ph/Antisnajper-03-31'><b>⏱ "
+"Антиснайпер?</b></a></i>\n"
+msgstr ""
+"On all questions @Oleksandr_Polis\n"
+"\n"
+"<i>What is <a href='https://telegra.ph/Antisniper-04-10'><b>⏱ "
+"Anti-sniper?</b></a></i>\n"
+
+#: handlers/client.py:670
+msgid ""
+"<b>📦 Лот {desc}...</b>\n"
+"✅Оплата пройшла успішно!\n"
+"Можете зв'язатись з переможцем https://t.me/{username}."
+msgstr ""
+"<b>📦 Lot {desc}...</b>\n"
+"✅Payment was successful!\n"
+"You can contact the winner https://t.me/{username}."
+
+#: handlers/client.py:679
+msgid ""
+"<b>📦 Лот {desc}...</b>\n"
+"❌ Оплату не зафіксовано.\n"
+"Щоб зв'язатись з переможцем, оплатіть комісію і натисніть <b>Отримати "
+"контакт</b>."
+msgstr ""
+"<b>📦 Lot {desc}...</b>\n"
+"❌ Payment is not recorded.\n"
+"To contact the winner, pay the fee and click <b>Get contact</b>."
+
+msgid "📝 Напишіть опис для оголошення:"
+msgstr "📝 Write a description for the ad:"
+
+msgid "ℹ️ Щоб виставити оголошення, потрібно оформити підписку."
+msgstr "ℹ️ To post an ad, you need to subscribe."
+
+msgid ""
+"⬆️ Оголошення готове до публікації!\n"
+"Перевірте всю інформацію і натисніть <b>✅ Опублікувати</b>, коли будете "
+"готові."
+msgstr ""
+"⬆️ The ad is ready for publication!\n"
+"Check all information and press <b> ✅ Publish</b> when you are "
+"ready."
+
+msgid ""
+"Оголошення готове!\n"
+"Опублікувати?"
+msgstr ""
+"Ad is ready!\n"
+"Publish?"
+
+msgid ""
+"💲 Вартість підписки 15$ на 30 днів.\n"
+"\n"
+"Оплатіть підписку натиснувши на кнопку нижче 👇"
+msgstr ""
+"💲 Subscription price is $15 for 30 days."
+"\n"
+"Pay for your subscription by clicking on the button below 👇"
+
+msgid "✅ Вітаю! Підписку на виставлення оголошень успішно оформлено на 30 днів."
+msgstr "✅ Congratulations! You have successfully subscribed to display ads for 30 days."
+
+msgid "⚠️ Оплату не зафіксовано"
+msgstr "⚠️ Payment not completed"
+
+#: handlers/middleware.py:16 handlers/middleware.py:25
+msgid ""
+"Щоб користуватись ботом потрібно створити або зробити публічним юзернейм "
+"у вашому телеграм акаунті."
+msgstr ""
+"To use the bot, you need to create or make a public username in your "
+"Telegram account."
+
+#: keyboards/kb.py:4
+msgid "🇬🇧 English"
+msgstr ""
+
+#: keyboards/kb.py:5
+msgid "🇺🇦 Українська"
+msgstr ""
+
+#: keyboards/kb.py:8
+msgid "🗃 Мої лоти"
+msgstr "🗃 My lots"
+
+#: keyboards/kb.py:10
+msgid "🆘 Допомога"
+msgstr "🆘 Help"
+
+#: keyboards/kb.py:11
+msgid "🏷 Створити лот"
+msgstr "🏷 Create lot"
+
+msgid "📣 Створити оголошення"
+msgstr "📣 Create ad"
+
+#: keyboards/kb.py:12
+msgid "⏱ Антиснайпер"
+msgstr "⏱ Antisniper"
+
+#: keyboards/kb.py:13
+msgid "💬 Повідомлення"
+msgstr "💬 Messages"
+
+msgid "📣 Створити оголошення"
+msgstr "📣 Create an advertisement"
+
+#: keyboards/kb.py:16 keyboards/kb.py:17 keyboards/kb.py:39 keyboards/kb.py:42
+#: keyboards/kb.py:70 keyboards/kb.py:73
+msgid "« Назад"
+msgstr "« Back"
+
+#: keyboards/kb.py:19
+msgid "❌ Відміна"
+msgstr "❌ Reset"
+
+#: keyboards/kb.py:22
+msgid "24 години"
+msgstr "24 hours"
+
+#: keyboards/kb.py:23
+msgid "48 годин"
+msgstr "48 hours"
+
+#: keyboards/kb.py:24
+msgid "7 днів"
+msgstr "7 days"
+
+#: keyboards/kb.py:27
+msgid "🎞 Змінити медіа"
+msgstr "🎞 Change media"
+
+#: keyboards/kb.py:28
+msgid '🔤 Змінити опис'
+msgstr "🔤 Change description"
+
+msgid '🔤 Змінити опис'
+msgstr "🔤 Change description"
+
+#: keyboards/kb.py:29
+msgid "💰 Змінити стартову ціну"
+msgstr "💰 Change start price"
+
+#: keyboards/kb.py:30
+msgid "⏳ Змінити тривалість лоту"
+msgstr "⏳ Change lot duration"
+
+#: keyboards/kb.py:31
+msgid "🪙 Змінити кроки ставки"
+msgstr "🪙 Change bid steps"
+
+#: keyboards/kb.py:32
+msgid '🏙 Змінити місто'
+msgstr "🏙 Change city"
+
+#: keyboards/kb.py:33
+msgid "✅ Опублікувати"
+msgstr "✅ Publish"
+
+#: keyboards/kb.py:37
+msgid "🗑 Видалити лот"
+msgstr "🗑 Delete lot"
+
+#: keyboards/kb.py:53
+msgid "❌ Відхилити"
+msgstr "❌ Decline"
+
+#: keyboards/kb.py:54
+msgid "✅ Підтвердити"
+msgstr "✅ Accept"
+
+#: keyboards/kb.py:59
+msgid "5хв"
+msgstr "5min"
+
+#: keyboards/kb.py:60
+msgid "10хв"
+msgstr "10min"
+
+#: keyboards/kb.py:61
+msgid "15хв"
+msgstr "15min"
+
+#: keyboards/kb.py:65
+msgid "❔ Запитання"
+msgstr "❔ Questions"
+
+#: keyboards/kb.py:66
+msgid "💬 Відповіді"
+msgstr "💬 Answers"
+
+#: keyboards/kb.py:69
+msgid "🗑 Видалити"
+msgstr "🗑 Delete"
+
+msgid "Оформити на 30 днів"
+msgstr "Subscribe for 30 days"
+
+msgid ""
+"🏆 Аукціон <b>{desc}</b> завершено!\n"
+"Можете зв'язатись з переможцем https://t.me/{username}."
+msgstr ""
+"🏆 Auction <b>{desc}</b> completed!\n"
+"You can contact the winner https://t.me/{username}."
+
+msgid ""
+"⚠️ У вашого оголошення <b>{desc}...</b> завершився термін і його було "
+"видалено."
+msgstr ""
+"⚠️ Your ad <b>{desc}...</b> has expired and has been "
+"removed."
+
+msgid ""
+"<i>https://t.me/{username} - надіслав оголошення на модерацію.\n"
+"</i>"
+msgstr ""
+"<i>https://t.me/{username} - sent an ad for moderation.\n"
+"</i>"
+
+msgid ""
+"<i>⚠️ Ваше оголошення проходить модерацію...\n"
+"</i>"
+msgstr ""
+"<i>⚠️ Your ad is being moderated...\n"
+"</i>"
+
+msgid "🔄 Оновити статус"
+msgstr "🔄 Update Status"
+
+#: utils/utils.py:390
+msgid "Оплатити 15$"
+msgstr "Pay $15"
+
+msgid '📋 Мої оголошення'
+msgstr '📋 My ads'
+
+msgid 'Оберіть існуючe оголошення або створіть нове:'
+msgstr 'Choose an existing ad or create a new one:'
+
+msgid 'Бажаєте видалити оголошення?'
+msgstr 'Do you want to remove the ad?'
+
+msgid '🗑 Видалити оголошення'
+msgstr '🗑 Remove ad'
+
+msgid '✅ Оголошення видалено.'
+msgstr '✅ The ad has been removed.'
+
+msgid 'Перевірка підписки...'
+msgstr 'Subscription verification...'
+
+msgid '✅ Очікуйте підтвердження модератора.'
+msgstr '✅ Wait for confirmation from the moderator.'
+
+msgid "✅ Модератор підтвердив зміну опису лоту.\n\n<a href='{lot_post}'><b>👉 Перейти до лоту.</b></a>"
+msgstr "✅ The moderator has confirmed the change in the description of the lot.\n\n<a href='{lot_post}'><b>👉 Go to the lot.</b></a>"
+
+msgid "✅ Модератор підтвердив зміну опису оголошення.\n\n<a href='{lot_post}'><b>👉 Перейти до оголошення.</b></a>"
+msgstr "The moderator confirmed the change in the description of the ad.\n\n<a href='{lot_post}'><b>👉 Go to the ad.</b></a>"
+
+msgid '❌ Запит на зміну опису для лоту <a href="{lot_link}"><b>{lot_desc}</b></a> відхилено.'
+msgstr '❌ The request to change the description for lot <a href="{lot_link}"><b>{lot_desc}</b></a> has been rejected.'
+
+msgid '❌ Запит на зміну опису для оголошення <a href="{lot_link}"><b>{lot_desc}</b></a> відхилено.'
+msgstr '❌ The request to change the description for ad <a href="{lot_link}"><b>{lot_desc}</b></a> has been rejected.'
+
+msgid 'Оголошення не актуальне'
+msgstr 'The ad is not relevant'
+
+msgid "Оберіть кількість повторних публікацій на день:"
+msgstr "Choose the number of reposts per day:"
+
+msgid ""
+"✅ Медіа збережені.\n"
+"Бажаєте публікувати оголошення щоденно?"
+msgstr ""
+"✅ Media saved.\n"
+"Would you like to post an ad daily?"
+
+msgid "Так"
+msgstr "Yes"
+
+msgid "Ні"
+msgstr "No"
+
+msgid "Оголошення не опубліковане."
+msgstr "The ad has not been published."
+
+msgid "🏷 Аукціон"
+msgstr "🏷 Auction"
