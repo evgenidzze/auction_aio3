@@ -28,7 +28,7 @@ from keyboards.kb import language_kb, main_kb, back_to_main_kb, auction_kb, crea
     decline_lot_deletion_btn, anti_kb, back_to_answers_btn, back_to_questions, back_show_ad_kb, back_show_lot_kb, \
     repost_count_kb, ready_to_publish_ad_kb, publish_adv_btn, reset_to_auction_menu_kb, reset_to_auction_menu_btn, \
     reset_to_ad_menu_kb, back_to_auction_btn, group_channels_kb, back_group_channels_btn, back_my_channels_groups, \
-    back_my_channels_groups_kb
+    back_my_channels_groups_kb, back_to_ad_menu_btn
 
 from utils.config import AUCTION_CHANNEL, ADVERT_CHANNEL
 from utils.paypal import get_status, create_payment_token
@@ -260,7 +260,7 @@ async def add_menu(call: types.CallbackQuery):
 async def my_ads(call: types.CallbackQuery, state: FSMContext):
     ads = await get_user_ads(call.from_user.id)
     kb = await create_user_lots_kb(ads)
-    kb.inline_keyboard.extend([[create_advert_btn], [back_to_main_btn]])
+    kb.inline_keyboard.extend([[create_advert_btn], [back_to_ad_menu_btn]])
     await state.set_state(FSMClient.change_ad)
     await call.message.edit_text(text=_('Оберіть існуючe оголошення або створіть нове:'), parse_mode='html',
                                  reply_markup=kb)
