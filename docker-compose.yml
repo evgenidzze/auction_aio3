@@ -20,7 +20,7 @@ services:
       - ./.env
     volumes:
       - my-db:/var/lib/mysql
-      - ./db/init.sql:/data/application/init.sql
+      - ./database/init.sql:/data/application/init.sql
   bot:
     build: .
     command: bash -c "alembic revision --autogenerate && alembic upgrade head && python start_bot.py"
