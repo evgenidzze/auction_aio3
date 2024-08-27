@@ -433,7 +433,12 @@ async def adv_publish(message, state):
     city: str = fsm_data.get('city')
     photos_link: str = fsm_data.get('photos_link')
     new_adv_id = await create_adv(message.from_user.id, fsm_data)
-    channel = await bot.get_chat(ADVERT_CHANNEL)
+    try:
+        channel = await bot.get_chat(ADVERT_CHANNEL)
+    except Exception as err:
+        logging.info(f'err {ADVERT_CHANNEL}')
+        await bot.send_message(chat_id=message.from_user.id, text=str(err))
+        return
     for admin_id in ADMINS:
         await send_advert(user_id=message.from_user.id, send_to_id=admin_id, description=description, city=city,
                           photos_link=photos_link, video_id=video_id, photo_id=photo_id,
@@ -782,9 +787,14 @@ async def accept_adv(call: types.CallbackQuery, state: FSMContext):
         owner = await bot.get_chat(owner_id)
 
         if not scheduler.get_job(f'adv_{new_adv_id}'):
-            msg = await send_advert(user_id=owner_id, send_to_id=ADVERT_CHANNEL, photo_id=photo_id, video_id=video_id,
-                                    description=description, city=city, advert_id=new_adv_id, moder_review=None,
-                                    photos_link=photos_link)
+            try:
+                msg = await send_advert(user_id=owner_id, send_to_id=ADVERT_CHANNEL, photo_id=photo_id, video_id=video_id,
+                                        description=description, city=city, advert_id=new_adv_id, moder_review=None,
+                                        photos_link=photos_link)
+            except Exception as err:
+                logging.info(f'err {ADVERT_CHANNEL}')
+                await bot.send_message(chat_id=call.from_user.id, text=str(err))
+                return
             await update_adv_sql(adv_id=new_adv_id, post_link=msg.get_url(), message_id=msg.message_id, approved=1)
             scheduler.add_job(adv_ending, trigger='interval', id=f'adv_{new_adv_id}', hours=168,
                               kwargs={'job_id': new_adv_id})
