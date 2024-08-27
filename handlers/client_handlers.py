@@ -7,8 +7,8 @@ from random import randint
 from typing import List
 
 from aiogram import Router, types, F
-from aiogram.enums import ChatMemberStatus
-from aiogram.filters import CommandStart, Command, BaseFilter
+from aiogram.enums import ChatMemberStatus, ContentType
+from aiogram.filters import CommandStart, Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -21,7 +21,7 @@ from database.db_manage import insert_or_update_user, get_user_lots, get_user, c
     update_user_sql, get_question_or_answer, get_question, get_answer, get_lot, delete_answer, create_adv, make_bid_sql, \
     get_adv, delete_lot_sql, delete_adv_sql, update_lot_sql, update_adv_sql, create_question, delete_question_db, \
     create_answer, create_group_channel, get_user_chats, get_all_chats, get_chat_record, update_chat_sql
-from keyboards.kb import language_kb, main_kb, back_to_main_kb, auction_kb, create_auction_btn, back_to_main_btn, \
+from keyboards.kb import language_kb, main_kb, back_to_main_kb, auction_kb, create_auction_btn, \
     currency_kb, lot_time_kb, cancel_btn, ready_to_publish_kb, publish_btn, add_menu_kb, create_advert_btn, \
     subscribe_adv_kb, quest_answ_kb, back_to_messages, back_to_questions_kb, back_to_answers_kb, yes_no_kb, \
     delete_lot_kb, delete_ad_kb, back_to_ready_ad_kb, back_to_ready_kb, back_to_ready_btn, accept_lot_deletion_btn, \
@@ -36,7 +36,7 @@ from utils.utils import create_user_lots_kb, save_sent_media, create_telegraph_l
     send_post, adv_sub_time_remain, user_have_approved_adv_token, create_question_kb, create_answers_kb, send_advert, \
     new_bid_caption, lot_ending, adv_ending, repost_adv, username_in_text, phone_in_text, payment_kb, \
     payment_approved, create_price_step_kb, photo_video_count_in_messages, restrict_media_count, bot_sub_time_remain, \
-    chat_have_approved_token
+    chat_have_approved_token, IsPrivateChatFilter, IsMessageType
 
 ADMINS = [397875584, 432530900]
 locale.setlocale(locale.LC_ALL, 'uk_UA.utf8')
@@ -273,7 +273,7 @@ async def ask_description_ad(call: types.CallbackQuery, state: FSMContext):
     result = redis_obj.redis.get('payment')
     if is_subscribed or (result and result.decode('utf-8') == 'off'):
         await call.message.edit_text(text=_('📝 Напишіть опис для оголошення:'), reply_markup=reset_to_ad_menu_kb)
-        await state.set_state(FSMClient.description)
+        await state.set_state(FSMClient.description_ad)
     elif await user_have_approved_adv_token(call.from_user.id):
         await update_user_sql(call.from_user.id, advert_subscribe_time=604800 + time.time())
         await call.message.edit_text(text=_('📝 Напишіть опис для оголошення:'), reply_markup=reset_to_ad_menu_kb)
@@ -367,29 +367,66 @@ async def ask_media_ad(message: types.Message, state: FSMContext):
 @media_group_handler
 async def save_media_ad(messages: List[types.Message], state: FSMContext):
     await state.update_data(is_ad=True)
-    photos_id, videos_id = [], []
-    html = await save_sent_media(messages, photos_id, videos_id, state)
-    if html and len(photos_id) > 1:
-        await create_telegraph_link(state, html)
-
-    if len(photos_id) > 5 or len(videos_id) > 1:
-        await messages[0].answer(text=_('❌ Максимум 5 фото і 1 відео.\n'
-                                        'Надішліть ще раз ваші медіафайли:'), reply_markup=reset_to_ad_menu_kb)
-        return
-    else:
-        if len(messages) <= 1:
+    state_name = await state.get_state()
+    if isinstance(messages[0], types.Message) and 'media' in state_name:
+        videos_id, photos_id = await photo_video_count_in_messages(messages=messages, state=state)
+        await restrict_media_count(photos_id, videos_id, messages, reset_to_auction_menu_kb)
+        fsm_data = await state.get_data()
+        if not videos_id:
+            await state.update_data(video_id=None)
+        if len(photos_id) <= 1 and not videos_id:
             await state.update_data(photos_link=None)
-    if await state.get_state() in ('FSMClient:change_media_ad', 'FSMClient:change_desc', 'FSMClient:change_city'):
+            fsm_data.pop('photos_link', None)
+        elif len(photos_id) > 1:
+            html = await save_sent_media(messages, photos_id, videos_id, state)
+            await create_telegraph_link(state, html)
+        await state.set_state(FSMClient.repost_count_answer)
+        if 'change' not in state_name:
+            await messages[0].answer(text=_("✅ Медіа збережені.\n"
+                                            "Бажаєте публікувати оголошення щоденно?"), reply_markup=yes_no_kb)
+        else:
+            await save_repost_count(messages[0], state)
+
+    else:
         await save_repost_count(messages[0], state)
         return
-    else:
-        await messages[0].answer(text=_("✅ Медіа збережені.\n"
-                                        "Бажаєте публікувати оголошення щоденно?"), reply_markup=yes_no_kb)
-        await state.set_state(FSMClient.repost_count_answer)
+        # fsm_data = await state.get_data()
+    # if isinstance(messages[0], types.Message):
+    #     if fsm_data.get('repost_count_answer'):
+    #         await state.set_state(FSMClient.repost_count_answer)
+    #     else:
+    #         await save_repost_count(messages[0], state)
+    #
+    # elif isinstance(messages[0], types.CallbackQuery):
+    #     await save_repost_count(messages[0], state)
+    #     return
+
+
+# await state.update_data(is_ad=True)
+# photos_id, videos_id = [], []
+# html = await save_sent_media(messages, photos_id, videos_id, state)
+# if html and len(photos_id) > 1:
+#     await create_telegraph_link(state, html)
+#
+# if len(photos_id) > 5 or len(videos_id) > 1:
+#     await messages[0].answer(text=_('❌ Максимум 5 фото і 1 відео.\n'
+#                                     'Надішліть ще раз ваші медіафайли:'), reply_markup=reset_to_ad_menu_kb)
+#     return
+# else:
+#     if len(messages) <= 1:
+#         await state.update_data(photos_link=None)
+# if await state.get_state() in ('FSMClient:change_media_ad', 'FSMClient:change_desc', 'FSMClient:change_city'):
+#     await save_repost_count(messages[0], state)
+#     return
+# else:
+#     await messages[0].answer(text=_("✅ Медіа збережені.\n"
+#                                     "Бажаєте публікувати оголошення щоденно?"), reply_markup=yes_no_kb)
+#     await state.set_state(FSMClient.repost_count_answer)
 
 
 async def adv_publish(message, state):
     fsm_data = await state.get_data()
+    print(fsm_data)
     video_id = fsm_data.get('video_id')
     photo_id = fsm_data.get('photo_id')
     description = fsm_data.get('description')
@@ -507,6 +544,7 @@ async def show_ad(message: types.CallbackQuery, state: FSMContext):
     approved = ad.approved
     await send_advert(message.from_user.id, message.from_user.id, description, city, photos_link, video_id, photo_id,
                       under_moderation=not approved)
+    await state.set_state(None)
     await message.message.answer(text=_('Бажаєте видалити оголошення?'), reply_markup=delete_ad_kb)
 
 
@@ -638,6 +676,7 @@ async def delete_lot(call: types.CallbackQuery, state: FSMContext):
 
 async def delete_ad(call: types.CallbackQuery, state: FSMContext):
     fsm_data = await state.get_data()
+    print(fsm_data)
     ad_id = fsm_data.get('change_ad')
     ad = await get_adv(ad_id)
     if ad.post_link:
@@ -746,7 +785,7 @@ async def accept_adv(call: types.CallbackQuery, state: FSMContext):
             msg = await send_advert(user_id=owner_id, send_to_id=ADVERT_CHANNEL, photo_id=photo_id, video_id=video_id,
                                     description=description, city=city, advert_id=new_adv_id, moder_review=None,
                                     photos_link=photos_link)
-            await update_adv_sql(adv_id=new_adv_id, post_link=msg.url, message_id=msg.message_id, approved=1)
+            await update_adv_sql(adv_id=new_adv_id, post_link=msg.get_url(), message_id=msg.message_id, approved=1)
             scheduler.add_job(adv_ending, trigger='interval', id=f'adv_{new_adv_id}', hours=168,
                               kwargs={'job_id': new_adv_id})
             now = datetime.datetime.now()
@@ -755,11 +794,10 @@ async def accept_adv(call: types.CallbackQuery, state: FSMContext):
                     1: str(now.hour),
                     2: f'{randint(8, 14)},{randint(17, 23)}',
                     3: f'{randint(8, 14)},{randint(15, 18)},{randint(19, 23)}'}
-                # 3: f'18, 18,18'}
                 scheduler.add_job(repost_adv, trigger='cron', id=f'adv_repost_{new_adv_id}',
                                   hour=hours_mapping.get(int(post_per_day)),
                                   minute=f'{now.minute}',
-                                  kwargs={'job_id': new_adv_id, 'user_tg': owner})
+                                  kwargs={'job_id': new_adv_id, 'username': owner.username})
                 job = scheduler.get_job(f'adv_repost_{new_adv_id}')
                 logging.info(f'name={job.name}; kwargs={job.kwargs}; next_run_time={job.next_run_time}')
 
@@ -768,7 +806,7 @@ async def accept_adv(call: types.CallbackQuery, state: FSMContext):
             text = _("✅ Готово!\n"
                      "Оголошення <b><a href='{msg_url}'>{desc}...</a></b> "
                      "опубліковано в каналі <b><a href='{channel_link}'>"
-                     "{channel_name}</a></b>").format(msg_url=msg.url,
+                     "{channel_name}</a></b>").format(msg_url=msg.get_url(),
                                                       desc=description[:15],
                                                       channel_link=channel.invite_link,
                                                       channel_name=channel.username)
@@ -778,7 +816,6 @@ async def accept_adv(call: types.CallbackQuery, state: FSMContext):
             await call.answer(text=_('Оголошення вже опубліковано.'))
     else:
         await call.answer(text=_('Оголошення вже відхилено.'))
-    await state.reset_state()
 
 
 async def decline_lot(call: types.CallbackQuery):
@@ -1237,11 +1274,6 @@ async def update_bot_subscription_status(call, state: FSMContext):
         return
 
 
-class IsPrivateChatFilter(BaseFilter):
-    async def __call__(self, message: types.Message) -> bool:
-        return message.chat.type == "private"
-
-
 def register_client_handlers(r: Router):
     r.message.register(start, CommandStart(), IsPrivateChatFilter())
     r.callback_query.register(main_menu, FSMClient.language)
@@ -1251,10 +1283,10 @@ def register_client_handlers(r: Router):
     r.callback_query.register(auction_menu, F.data == 'auction')
     r.callback_query.register(my_auctions, F.data == 'my_auctions')
 
-    r.callback_query.register(ask_city, F.data == 'create_auction')
+    r.callback_query.register(ask_city, F.data == 'create_auction', IsMessageType(message_type=[ContentType.TEXT]))
     r.message.register(ask_currency, FSMClient.city)
     r.callback_query.register(ask_description, FSMClient.currency)
-    r.message.register(ask_price, FSMClient.description)
+    r.message.register(ask_price, FSMClient.description, IsMessageType(message_type=[ContentType.TEXT]))
     r.message.register(ask_price_steps, FSMClient.price)
     r.message.register(ask_lot_living, FSMClient.price_steps)
     r.callback_query.register(ask_media, FSMClient.lot_time_living)
@@ -1274,9 +1306,10 @@ def register_client_handlers(r: Router):
     r.callback_query.register(answers_list, F.data == 'answers')
 
     r.callback_query.register(ask_description_ad, F.data == 'create_ad')
-    r.message.register(ask_city_ad, FSMClient.description_ad)
-    r.message.register(ask_media_ad, FSMClient.city_ad)
-    r.message.register(save_media_ad, FSMClient.media_ad)
+    r.message.register(ask_city_ad, FSMClient.description_ad, IsMessageType(message_type=[ContentType.TEXT]))
+    r.message.register(ask_media_ad, FSMClient.city_ad, IsMessageType(message_type=[ContentType.TEXT]))
+    r.message.register(save_media_ad, FSMClient.media_ad,
+                       IsMessageType(message_type=[ContentType.PHOTO, ContentType.VIDEO]))
 
     r.callback_query.register(save_media_ad, F.data == 'back_to_ready_ad')
     r.callback_query.register(lot_publish, F.data == 'publish_lot')
@@ -1285,8 +1318,8 @@ def register_client_handlers(r: Router):
     r.callback_query.register(make_bid, F.data.startswith('bid'))
     r.callback_query.register(show_lot, FSMClient.change_lot)
     r.callback_query.register(show_lot, F.data == 'show_lot')
-    r.callback_query.register(show_ad, FSMClient.change_ad)
     r.callback_query.register(show_ad, F.data == 'show_ad')
+    r.callback_query.register(show_ad, FSMClient.change_ad)
 
     r.callback_query.register(change_media, F.data == 'change_media')
     r.callback_query.register(change_desc, F.data == 'change_desc')

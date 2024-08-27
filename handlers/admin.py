@@ -39,7 +39,7 @@ async def deny_user_access(call: types.CallbackQuery, state: FSMContext):
     await call.message.edit_text(text='👋🏻 Вітаю!\n'
                                       'Надішліть <b>id</b> користувача для надання або скасування прав:',
                                  parse_mode='html',
-                                 reply_markup=InlineKeyboardMarkup().add(back_to_admin))
+                                 reply_markup=InlineKeyboardMarkup(inline_keyboard=[[back_to_admin]]))
 
 
 async def user_access(message: types.Message, state: FSMContext):

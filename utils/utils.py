@@ -2,11 +2,13 @@ import datetime
 import logging
 import re
 import time
-from typing import List
+from typing import List, Literal
 
 import aiofiles
 import aiohttp
 from aiogram import types
+from aiogram.enums import ContentType
+from aiogram.filters import BaseFilter
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, PhotoSize
 from aiogram.utils.deep_linking import create_start_link
 from telegraph import Telegraph
@@ -18,6 +20,29 @@ from keyboards.kb import decline_lot_btn, accept_lot_btn, main_kb, back_to_main_
 from utils.config import ADVERT_CHANNEL
 from utils.paypal import create_payment_token, get_status, capture
 from create_bot import _
+
+
+class IsPrivateChatFilter(BaseFilter):
+    async def __call__(self, message: types.Message) -> bool:
+        return message.chat.type == "private"
+
+
+class IsMessageType(BaseFilter):
+    def __init__(self, message_type: List[(Literal[ContentType.PHOTO, ContentType.TEXT, ContentType.VIDEO])]):
+        self.message_type = message_type
+
+    async def __call__(self, message: types.Message) -> bool:
+        if isinstance(message, types.Message):
+            print(self.message_type)
+            if message.content_type in self.message_type:
+                return True
+            elif self.message_type[0] == ContentType.TEXT:
+                await message.answer(text=_('Потрібно надіслати текст:'))
+            elif self.message_type[0] in (ContentType.VIDEO, ContentType.PHOTO):
+                await message.answer(text=_('Потрібно надіслати медіа:'))
+            return False
+        else:
+            return True
 
 
 async def lot_ending(job_id, msg_id: types.Message):
@@ -114,7 +139,6 @@ async def create_user_lots_kb(lots):
     for lot in lots:
         lot = lot[0]
         kb.inline_keyboard.append([InlineKeyboardButton(text=f'{lot.description[:25]}...', callback_data=f'{lot.id}')])
-        print(kb)
     return kb
 
 
@@ -146,7 +170,7 @@ async def send_post(user_id, send_to_id, photo_id, video_id, description, start_
             username=user_tg.username, description=description, new_desc=new_desc)
         decline_lot_btn.callback_data = f'edit_new_text:{lot_id}:decline:lot'
         accept_lot_btn.callback_data = f'edit_new_text:{lot_id}:accept:lot'
-        kb.add(decline_lot_btn, accept_lot_btn)
+        kb.inline_keyboard.extend([[decline_lot_btn, accept_lot_btn]])
     caption += _("<b>{description}</b>\n\n"
                  "🏙 <b>Місто:</b> {city}\n\n"
                  "👇 <b>Ставки учасників:</b>\n\n"
@@ -178,17 +202,17 @@ async def send_advert(user_id, send_to_id, description, city, photos_link, video
     user = await get_user(user_id=user_id)
     caption = ''
     user_tg = await bot.get_chat(user.telegram_id)
-    kb = InlineKeyboardMarkup()
+    kb = InlineKeyboardMarkup(inline_keyboard=[])
     if advert_id and moder_review:
         caption = _('<i>https://t.me/{username} - надіслав оголошення на модерацію.\n</i>').format(
             username=user_tg.username)
         decline_lot_btn.callback_data = f'decline_advert_{advert_id}'
         accept_lot_btn.callback_data = f'accept_advert_{advert_id}'
-        kb.add(decline_lot_btn, accept_lot_btn)
+        kb.inline_keyboard.extend([[decline_lot_btn, accept_lot_btn]])
     elif not moder_review and not change_text:
-        kb.add(InlineKeyboardButton(text='⏳', callback_data=f'time_left_adv_{advert_id}'))
-        kb.add(InlineKeyboardButton(text=_('💬 Задати питання автору'),
-                                    url=f'https://t.me/{user_tg.username}'))
+        kb.inline_keyboard.extend([[InlineKeyboardButton(text='⏳', callback_data=f'time_left_adv_{advert_id}')]])
+        kb.inline_keyboard.extend([[InlineKeyboardButton(text=_('💬 Задати питання автору'),
+                                    url=f'https://t.me/{user_tg.username}')]])
         if under_moderation:
             caption = _('<i>⚠️ Ваш лот проходить модерацію...\n</i>')
     elif change_text and advert_id:
@@ -197,7 +221,7 @@ async def send_advert(user_id, send_to_id, description, city, photos_link, video
             username=user_tg.username, description=description, new_desc=new_desc)
         decline_lot_btn.callback_data = f'edit_new_text:{advert_id}:decline:ad'
         accept_lot_btn.callback_data = f'edit_new_text:{advert_id}:accept:ad'
-        kb.add(decline_lot_btn, accept_lot_btn)
+        kb.inline_keyboard.extend([[decline_lot_btn, accept_lot_btn]])
 
     caption += _("<b>{description}</b>\n\n"
                  "🏙 <b>Місто:</b> {city}\n").format(description=description, city=city)
@@ -235,7 +259,7 @@ async def contact_payment_kb_generate(bidder_telegram_id, token, lot_id, owner_l
     pay_btn = InlineKeyboardButton(text='5.00 USD', url=str(payment_url))
     get_contact_btn = InlineKeyboardButton(text=_('Отримати контакт', locale=owner_locale),
                                            callback_data=f'get_winner_{bidder_telegram_id}_{lot_id}')
-    kb = InlineKeyboardMarkup().add(pay_btn).add(get_contact_btn)
+    kb = InlineKeyboardMarkup(inline_keyboard=[[pay_btn], [get_contact_btn]])
     return kb
 
 
@@ -299,7 +323,8 @@ async def create_question_kb(questions: List[Question], owner_id):
     kb = InlineKeyboardMarkup(inline_keyboard=[])
     for q in questions:
         lot = await get_lot(q.lot_id)
-        kb.inline_keyboard.extend([[InlineKeyboardButton(text=f'{lot.description[:20]} - {q.question}', callback_data=q.id)]])
+        kb.inline_keyboard.extend(
+            [[InlineKeyboardButton(text=f'{lot.description[:20]} - {q.question}', callback_data=q.id)]])
     return kb
 
 
@@ -307,7 +332,8 @@ async def create_answers_kb(answers: List[Answer], recipient_id):
     kb = InlineKeyboardMarkup(inline_keyboard=[])
     for a in answers:
         lot = await get_lot(a.lot_id)
-        kb.inline_keyboard.extend([[InlineKeyboardButton(text=f'{lot.description[:20]} - {a.answer}', callback_data=a.id)]])
+        kb.inline_keyboard.extend(
+            [[InlineKeyboardButton(text=f'{lot.description[:20]} - {a.answer}', callback_data=a.id)]])
     return kb
 
 
@@ -467,14 +493,14 @@ async def payment_kb(token, activate_btn_text, callback_data, back_btn: InlineKe
     return pay_kb
 
 
-async def repost_adv(job_id, user_tg):
+async def repost_adv(job_id, username):
     logging.info(f'start repost adv job_id={job_id}')
     adv = await get_adv(job_id)
     if adv:
-        kb = InlineKeyboardMarkup()
-        kb.add(InlineKeyboardButton(text='⏳', callback_data=f'time_left_adv_{job_id}'))
-        kb.add(InlineKeyboardButton(text=_('💬 Задати питання автору'),
-                                    url=f'https://t.me/{user_tg.username}'))
+        kb = InlineKeyboardMarkup(inline_keyboard=[])
+        kb.inline_keyboard.extend([[InlineKeyboardButton(text='⏳', callback_data=f'time_left_adv_{job_id}')]])
+        kb.inline_keyboard.extend([[InlineKeyboardButton(text=_('💬 Задати питання автору'),
+                                    url=f'https://t.me/{username}')]])
         new_message = await bot.copy_message(chat_id=ADVERT_CHANNEL, from_chat_id=ADVERT_CHANNEL,
                                              message_id=adv.message_id, reply_markup=kb)
         await bot.delete_message(chat_id=ADVERT_CHANNEL, message_id=adv.message_id)

@@ -64,9 +64,9 @@ delete_lot_btn = InlineKeyboardButton(text='🗑 Видалити лот', callb
 delete_lot_kb = InlineKeyboardMarkup(inline_keyboard=[[change_desc_exist_lot_btn], [delete_lot_btn], [
     InlineKeyboardButton(text='« Назад', callback_data='my_auctions')]])
 
-change_desc_exist_ad_btn = InlineKeyboardButton(text='🔤 Змінити опис', callback_data='change_desc_exist_ad')
+# change_desc_exist_ad_btn = InlineKeyboardButton(text='🔤 Змінити опис', callback_data='change_desc_exist_ad')
 delete_ad_btn = InlineKeyboardButton(text='🗑 Видалити оголошення', callback_data='delete_ad')
-delete_ad_kb = InlineKeyboardMarkup(inline_keyboard=[[change_desc_exist_ad_btn], [delete_ad_btn], [
+delete_ad_kb = InlineKeyboardMarkup(inline_keyboard=[[delete_ad_btn], [
     InlineKeyboardButton(text='« Назад', callback_data='my_ads')]])
 
 back_to_ready_btn = InlineKeyboardButton(text='« Назад', callback_data='back_to_ready')
