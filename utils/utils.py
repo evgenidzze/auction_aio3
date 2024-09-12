@@ -1,5 +1,6 @@
 import datetime
 import logging
+import os
 import re
 import time
 from typing import List, Literal
@@ -212,7 +213,7 @@ async def send_advert(user_id, send_to_id, description, city, photos_link, video
     elif not moder_review and not change_text:
         kb.inline_keyboard.extend([[InlineKeyboardButton(text='⏳', callback_data=f'time_left_adv_{advert_id}')]])
         kb.inline_keyboard.extend([[InlineKeyboardButton(text=_('💬 Задати питання автору'),
-                                    url=f'https://t.me/{user_tg.username}')]])
+                                                         url=f'https://t.me/{user_tg.username}')]])
         if under_moderation:
             caption = _('<i>⚠️ Ваш лот проходить модерацію...\n</i>')
     elif change_text and advert_id:
@@ -413,34 +414,38 @@ async def save_sent_media(messages, photos_id, videos_id, state):
         async with aiohttp.ClientSession() as session:
             if photos_id:
                 for photo_id in photos_id:
+                    # Отримуємо файл з Telegram
                     file = await bot.get_file(photo_id)
                     file_path = file.file_path
                     file_url = f"https://api.telegram.org/file/bot{bot.token}/{file_path}"
+
                     async with session.get(file_url) as response:
                         if response.status != 200:
-                            continue
+                            continue  # Пропускаємо, якщо не вдалося отримати файл
+
                         temp_filename = f"/tmp/{photo_id}.jpg"
+                        # Зберігаємо файл на диск
                         async with aiofiles.open(temp_filename, 'wb') as f:
                             await f.write(await response.read())
-
                     async with aiofiles.open(temp_filename, 'rb') as f:
                         form = aiohttp.FormData()
-                        form.add_field('file', f, filename='file', content_type='image/jpeg')
+                        form.add_field(
+                            name='file',
+                            value=f,
+                            filename=os.path.abspath('utils/q.jpg'),
+                            content_type='image/jpeg'
+                        )
                         async with session.post('https://telegra.ph/upload', data=form) as response:
                             if response.status == 200:
                                 telegraph_url = await response.json()
                                 if telegraph_url and 'src' in telegraph_url[0]:
                                     full_url = f"https://telegra.ph{telegraph_url[0]['src']}"
-                                    print(full_url)
                                     html += f"<img src='{full_url}'/><br>"
 
                     await state.update_data(photo_id=photo_id)
 
             if videos_id:
                 await state.update_data(video_id=videos_id[0])
-            # else:
-            #     await messages[0].answer(text=_('❌ Надішліть фото або відео.'), parse_mode='html')
-            #     return False
     return html
 
 
@@ -500,7 +505,7 @@ async def repost_adv(job_id, username):
         kb = InlineKeyboardMarkup(inline_keyboard=[])
         kb.inline_keyboard.extend([[InlineKeyboardButton(text='⏳', callback_data=f'time_left_adv_{job_id}')]])
         kb.inline_keyboard.extend([[InlineKeyboardButton(text=_('💬 Задати питання автору'),
-                                    url=f'https://t.me/{username}')]])
+                                                         url=f'https://t.me/{username}')]])
         new_message = await bot.copy_message(chat_id=ADVERT_CHANNEL, from_chat_id=ADVERT_CHANNEL,
                                              message_id=adv.message_id, reply_markup=kb)
         await bot.delete_message(chat_id=ADVERT_CHANNEL, message_id=adv.message_id)

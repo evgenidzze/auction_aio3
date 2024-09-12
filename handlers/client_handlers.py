@@ -204,9 +204,9 @@ async def ready_lot(messages: List[types.Message], state: FSMContext):
         if len(photos_id) <= 1 and not videos_id:
             await state.update_data(photos_link=None)
             fsm_data.pop('photos_link', None)
-        elif len(photos_id) > 1:
-            html = await save_sent_media(messages, photos_id, videos_id, state)
-            await create_telegraph_link(state, html)
+        # elif len(photos_id) > 1:
+        #     html = await save_sent_media(messages, photos_id, videos_id, state)
+        #     await create_telegraph_link(state, html)
     fsm_data = await state.get_data()
     kb = deepcopy(ready_to_publish_kb)
     kb.inline_keyboard.extend([[cancel_btn, publish_btn]])
@@ -426,7 +426,6 @@ async def save_media_ad(messages: List[types.Message], state: FSMContext):
 
 async def adv_publish(message, state):
     fsm_data = await state.get_data()
-    print(fsm_data)
     video_id = fsm_data.get('video_id')
     photo_id = fsm_data.get('photo_id')
     description = fsm_data.get('description')
@@ -436,7 +435,7 @@ async def adv_publish(message, state):
     try:
         channel = await bot.get_chat(ADVERT_CHANNEL)
     except Exception as err:
-        logging.info(f'err {ADVERT_CHANNEL}')
+        logging.info(f'{err} {ADVERT_CHANNEL}')
         await bot.send_message(chat_id=message.from_user.id, text=str(err))
         return
     for admin_id in ADMINS:
@@ -749,7 +748,7 @@ async def accept_lot(call: types.CallbackQuery, state: FSMContext):
             msg = await send_post(owner_id, AUCTION_CHANNEL, photo_id, video_id, description, start_price,
                                   price_steps, currency=currency, city=city, lot_id=new_lot_id, moder_review=None,
                                   photos_link=photos_link)
-            await update_lot_sql(lot_id=new_lot_id, lot_link=msg.url, message_id=msg.message_id, approved=1)
+            await update_lot_sql(lot_id=new_lot_id, lot_link=msg.get_url(), message_id=msg.message_id, approved=1)
             scheduler.add_job(lot_ending, trigger='interval', id=f'lot_{new_lot_id}', hours=lot.lot_time_living,
                               kwargs={'job_id': new_lot_id, 'msg_id': msg.message_id})
             # scheduler.add_job(lot_ending, trigger='cron', id=new_lot_id, minute='4,3,3',
@@ -759,7 +758,7 @@ async def accept_lot(call: types.CallbackQuery, state: FSMContext):
             text = _("✅ Готово!\n"
                      "Лот <b><a href='{msg_url}'>{desc}...</a></b> "
                      "опубліковано в каналі <b><a href='{channel_link}'>"
-                     "{channel_name}</a></b>").format(msg_url=msg.url,
+                     "{channel_name}</a></b>").format(msg_url=msg.get_url(),
                                                       desc=description[:15],
                                                       channel_link=channel.invite_link,
                                                       channel_name=channel.username)
@@ -769,7 +768,7 @@ async def accept_lot(call: types.CallbackQuery, state: FSMContext):
             await call.answer(text=_('Лот вже опубліковано.'))
     else:
         await call.answer(text=_('Лот вже відхилено.'))
-    await state.reset_state()
+    # await state.reset_state()
 
 
 async def accept_adv(call: types.CallbackQuery, state: FSMContext):
