@@ -485,7 +485,7 @@ async def make_bid(message: types.CallbackQuery):
             await bot.send_message(chat_id=owner_id,
                                    text=_(
                                        "💸 Нова ставка на ваш лот!\n\n<a href='{lot_post}'><b>👉 Перейти до лоту.</b></a>").format(
-                                       lot_post=lot_post.url),
+                                       lot_post=lot_post.get_url()),
                                    parse_mode='html',
                                    reply_markup=main_kb)
             if last_bidder_id:
@@ -493,7 +493,7 @@ async def make_bid(message: types.CallbackQuery):
                                        text=_(
                                            "👋 Вашу ставку на лот <a href='{lot_post}'><b>{lot_name}</b></a> перебили.\n\n"
                                            "<a href='{lot_post}'><b>👉 Перейти до лоту.</b></a>").format(
-                                           lot_post=lot_post.url, lot_name=lot.description), reply_markup=main_kb,
+                                           lot_post=lot_post.get_url(), lot_name=lot.description), reply_markup=main_kb,
                                        parse_mode='html')
             await message.answer(text=_('✅ Ставку прийнято!'))
         else:
