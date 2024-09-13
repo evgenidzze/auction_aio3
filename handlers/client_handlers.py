@@ -805,10 +805,8 @@ async def accept_adv(call: types.CallbackQuery, state: FSMContext):
                     3: f'{randint(8, 14)},{randint(15, 18)},{randint(19, 23)}'}
 
                 scheduler.add_job(repost_adv, trigger='cron', id=f'adv_repost_{new_adv_id}',
-                                  # hour=hours_mapping.get(int(post_per_day)),
-                                  # minute=f'{now.minute}',
-                                  hour=now.hour,
-                                  minute=f'{now.minute+1}',
+                                  hour=hours_mapping.get(int(post_per_day)),
+                                  minute=f'{now.minute}',
                                   kwargs={'job_id': new_adv_id, 'username': owner.username})
                 job = scheduler.get_job(f'adv_repost_{new_adv_id}')
                 logging.info(f'name={job.name}; kwargs={job.kwargs}; next_run_time={job.next_run_time}')
