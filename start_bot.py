@@ -4,7 +4,7 @@ import logging
 from aiogram.methods import DeleteWebhook
 from aiogram.types import BotCommand
 
-from create_bot import dp, bot, i18n
+from create_bot import dp, bot, i18n, scheduler
 from database.db_manage import on_startup
 from handlers.admin import register_admin_handlers
 from handlers.client_handlers import router, register_client_handlers
@@ -26,6 +26,7 @@ async def main():
     dp.include_router(router)
     await bot.set_my_commands([BotCommand(command='start', description='Change language/Змінити мову'),
                                BotCommand(command='main_menu', description='Main menu/Головне меню')])
+    scheduler.start()
     await dp.start_polling(bot)
 
 

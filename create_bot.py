@@ -1,4 +1,5 @@
 import asyncio
+import time
 from pathlib import Path
 import aioredis
 from aiogram import Bot, Dispatcher
@@ -22,9 +23,8 @@ job_stores = {
     "default": RedisJobStore(jobs_key="dispatched_trips_jobs", run_times_key="dispatched_trips_running",
                              host=REDIS_HOST, port=6379, password=REDIS_PASS
                              )}
-scheduler = ContextSchedulerDecorator(AsyncIOScheduler(jobstores=job_stores))
-connection = async_to_sync(aioredis.from_url(f'redis://{REDIS_PASS}@{REDIS_HOST}'))
-
+scheduler = AsyncIOScheduler(jobstores=job_stores)
+# connection = async_to_sync(aioredis.from_url(f'redis://{REDIS_PASS}@{REDIS_HOST}'))
 I18N_DOMAIN = 'auction'
 BASE_DIR = Path(__file__).parent
 LOCALES_DIR = BASE_DIR / 'locales'
@@ -35,4 +35,6 @@ storage = RedisStorageDisp(redis=redis)
 
 bot = Bot(BOT_TOKEN)
 dp = Dispatcher(storage=storage)
-scheduler.start()
+
+for job in scheduler.get_jobs():
+    print(f"Job ID: {job.id}, Next Run Time: {job.next_run_time}")
