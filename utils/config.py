@@ -16,4 +16,5 @@ REDIS_HOST = os.environ.get('REDIS_HOST')
 ADVERT_CHANNEL = os.environ.get('ADVERT_CHANNEL')
 AUCTION_CHANNEL = os.environ.get('AUCTION_CHANNEL')
 REDIS_PASS = os.environ.get('REDIS_PASS')
+GALLERY_CHANNEL = os.environ.get('GALLERY_CHANNEL')
 WORKDIR = Path(__file__).parent.parent
