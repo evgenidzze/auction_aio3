@@ -3,6 +3,7 @@ import time
 from pathlib import Path
 import aioredis
 from aiogram import Bot, Dispatcher
+from aiogram.client.default import DefaultBotProperties
 from aiogram.utils.i18n import I18n, I18nMiddleware
 from apscheduler.jobstores.redis import RedisJobStore
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -26,14 +27,14 @@ job_stores = {
 scheduler = AsyncIOScheduler(jobstores=job_stores)
 # connection = async_to_sync(aioredis.from_url(f'redis://{REDIS_PASS}@{REDIS_HOST}'))
 I18N_DOMAIN = 'auction'
-BASE_DIR = Path(__file__).parent
+BASE_DIR = Path(__file__).parent.parent
 LOCALES_DIR = BASE_DIR / 'locales'
 i18n = I18n(path=LOCALES_DIR, domain=I18N_DOMAIN)
 _ = i18n.gettext
 redis = Redis(host=REDIS_HOST, password=REDIS_PASS)
 storage = RedisStorageDisp(redis=redis)
 
-bot = Bot(BOT_TOKEN)
+bot = Bot(BOT_TOKEN, default=DefaultBotProperties(parse_mode='html'))
 dp = Dispatcher(storage=storage)
 
 for job in scheduler.get_jobs():

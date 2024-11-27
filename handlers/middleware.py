@@ -1,18 +1,15 @@
 import logging
-from typing import Union, List, Dict, Any, Callable, Awaitable
-from copy import deepcopy
-from typing import Optional
-from aiogram import types, Bot, BaseMiddleware, Router
-from aiogram.client.default import Default
+from typing import Dict, Any, Optional, List, Type
+from aiogram import types, Bot, BaseMiddleware, loggers
 from aiogram.client.session.middlewares.base import BaseRequestMiddleware, NextRequestMiddlewareType
 from aiogram.dispatcher.event.bases import CancelHandler
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.methods.base import TelegramType, Response, TelegramMethod
-from aiogram.types import MessageEntity, LinkPreviewOptions, InlineKeyboardMarkup, Message, TelegramObject
+from aiogram.types import InlineKeyboardMarkup, TelegramObject
 # from aiogram.utils.i18n import I18nMiddleware
 from aiogram.utils.i18n import gettext as _, I18nMiddleware
 
-from create_bot import i18n
+from utils.create_bot import i18n
 from utils.utils import translate_kb
 
 
@@ -51,6 +48,7 @@ class ChangeLanguageMiddleware(BaseRequestMiddleware):
             return await make_request(bot, method)
         except TelegramBadRequest as err:
             logging.info(f"Telegram server says - Bad Request: chat {getattr(method, 'chat_id', None)} not found")
+
 
 class Localization(I18nMiddleware):
     async def get_locale(self, event: TelegramObject, data: Dict[str, Any]) -> str:
