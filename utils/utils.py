@@ -12,7 +12,8 @@ from aiogram.utils.media_group import MediaGroupBuilder
 from utils.create_bot import bot, scheduler, job_stores
 from database.db_manage import get_lot, get_user, update_lot_sql, get_adv, update_adv_sql, get_chat_record, \
     delete_record_by_id, Lot, Advertisement, update_chat_sql
-from keyboards.kb import decline_lot_btn, accept_lot_btn, main_kb, back_to_main_btn
+from keyboards.client_kb import decline_lot_btn, accept_lot_btn, back_to_main_btn
+from keyboards.admin_kb import main_kb
 from utils.config import ADVERT_CHANNEL, GALLERY_CHANNEL
 from utils.paypal import create_order, get_payment_status, capture, api_domain
 from utils.create_bot import _
