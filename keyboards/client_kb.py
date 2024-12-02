@@ -1,6 +1,5 @@
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-from aiogram.utils.keyboard import InlineKeyboardBuilder, KeyboardBuilder
-from utils.create_bot import _
+from keyboards.admin_kb import admin_menu_kb
 
 # from create_bot import _
 
@@ -10,18 +9,11 @@ language_kb = InlineKeyboardMarkup(inline_keyboard=[[ua_btn], [eng_btn]])
 back_to_main_btn = InlineKeyboardButton(text='« Назад', callback_data='main_menu')
 
 my_auctions_btn = InlineKeyboardButton(text='🗃 Мої лоти', callback_data='my_auctions')
-help_btn = InlineKeyboardButton(text='🆘 Допомога', callback_data='help')
-auction_btn = InlineKeyboardButton(text='🏷 Аукціон', callback_data='auction')
+
 create_auction_btn = InlineKeyboardButton(text='➕ Створити аукціон', callback_data='create_auction')
 anti_sniper_btn = InlineKeyboardButton(text='⏱ Антиснайпер', callback_data='anti_sniper')
 # chats_btn = InlineKeyboardButton(text='💬 Повідомлення', callback_data='chats')
-create_advert_btn = InlineKeyboardButton(text='📣 Оголошення', callback_data='ad_menu')
-group_channels_btn = InlineKeyboardButton(text='👥 Групи та канали', callback_data='groups_and_channels')
 manage_panel_btn = InlineKeyboardButton(text='🔧 Панель керування', callback_data='create_ad')
-pro_sub_btn = InlineKeyboardButton(text='💎 Pro-підписка', callback_data='create_ad')
-main_kb = InlineKeyboardMarkup(
-    inline_keyboard=[[auction_btn, create_advert_btn], [group_channels_btn], [pro_sub_btn],
-                     [help_btn]])
 
 my_ads_btn = InlineKeyboardButton(text='📋 Мої оголошення', callback_data='my_ads')
 create_advert_btn = InlineKeyboardButton(text='📣 Створити голошення', callback_data='create_ad')
@@ -109,18 +101,12 @@ anti_kb = InlineKeyboardMarkup(inline_keyboard=[[anti_5_btn, anti_10_btn, anti_1
 black_list_btn = InlineKeyboardButton(text='🚫 Чорний список', callback_data='deny_user_access')
 payment_on_btn = InlineKeyboardButton(text='Увімкнути оплату', callback_data='on_payment')
 payment_of_btn = InlineKeyboardButton(text='Вимкнути оплату', callback_data='off_payment')
-reject_to_admin_btn = InlineKeyboardButton(text='❌Відміна', callback_data='admin')
-back_to_admin_btn = InlineKeyboardButton(text='« Назад', callback_data='admin')
-back_to_group_manage_btn = InlineKeyboardButton(text="« Назад", callback_data="group_manage")
 groups_manage_btn = InlineKeyboardButton(text='Керування групами', callback_data='group_manage')
 add_group = InlineKeyboardButton(text='🔌 Підключити групу', callback_data='add_group')
 monetization = InlineKeyboardButton(text='💰 Монетизація', callback_data='monetization')
 
-unblock_user_btn = InlineKeyboardButton(text='🔑 Розблокувати', callback_data='access_{user_id}_unblock')
-block_user_btn = InlineKeyboardButton(text='🚫 Заблокувати', callback_data='access_{user_id}_block')
 my_channels_groups = InlineKeyboardButton(text='Мої групи/канали', callback_data='my_channels_groups')
 
-admin_menu_kb = InlineKeyboardBuilder()
 admin_menu_kb.row(my_channels_groups, add_group).row(monetization, black_list_btn)
 
 adv_30_days = InlineKeyboardButton(text='Оформити на 30 днів', callback_data='2592000')
@@ -151,18 +137,5 @@ other_channels_groups = InlineKeyboardButton(text='Інші групи/кана�
 group_channels_kb = InlineKeyboardMarkup(inline_keyboard=[[other_channels_groups], [back_to_main_btn]])
 
 back_group_channels_btn = InlineKeyboardButton(text='« Назад', callback_data='groups_and_channels')
-back_my_channels_groups = InlineKeyboardButton(text='« Назад', callback_data='my_channels_groups')
-back_my_channels_groups_kb = InlineKeyboardMarkup(inline_keyboard=[[back_my_channels_groups]])
 
 
-async def activate_ad_auction_kb(auction_token, ads_token, user_chat_id, back_btn=back_to_main_btn):
-    from utils.utils import payment_link_generate
-    auction_payment_url = await payment_link_generate(auction_token)
-    ads_payment_url = await payment_link_generate(ads_token)
-    builder = InlineKeyboardBuilder()
-    update_status_btn = InlineKeyboardButton(text=_('🔄 Оновити статус'),
-                                             callback_data=f'{user_chat_id}:{auction_token},{ads_token}:sub_update')
-    builder.button(text='Активувати аукціон', url=auction_payment_url).button(
-        text='Активувати оголошення', url=ads_payment_url).add(update_status_btn).add(back_btn)
-    builder.adjust(2)
-    return builder.as_markup()

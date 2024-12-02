@@ -11,10 +11,9 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from utils.create_bot import job_stores, bot, _
 from database.db_manage import get_user, update_user_sql, get_user_chats, get_chat_record, update_chat_sql
 # from handlers.client_handlers import ADMINS
-from keyboards.kb import reject_to_admin_btn, admin_menu_kb, \
-    unblock_user_btn, \
-    block_user_btn, back_to_admin_btn, back_to_group_manage_btn, back_my_channels_groups_kb, \
-    back_my_channels_groups, main_kb, activate_ad_auction_kb
+from keyboards.admin_kb import main_kb, reject_to_admin_btn, back_to_admin_btn, back_to_group_manage_btn, \
+    unblock_user_btn, block_user_btn, admin_menu_kb, back_my_channels_groups, back_my_channels_groups_kb, \
+    activate_ad_auction_kb
 from utils.paypal import get_payment_status, create_order
 from utils.utils import bot_sub_time_remain, get_tokens_approval, payment_completed, \
     get_token_or_create_new
