@@ -15,7 +15,7 @@ from keyboards.admin_kb import main_kb, reject_to_admin_btn, back_to_admin_btn, 
     unblock_user_btn, block_user_btn, admin_menu_kb, back_my_channels_groups, back_my_channels_groups_kb, \
     activate_ad_auction_kb
 from utils.paypal import get_payment_status, create_order
-from utils.utils import bot_sub_time_remain, get_tokens_approval, payment_completed, \
+from utils.utils import  get_token_approval, payment_completed, \
     get_token_or_create_new
 
 
@@ -168,64 +168,35 @@ async def user_chat_menu(call: types.CallbackQuery, state: FSMContext):
     await call.message.edit_text(text=_('Перевірка підписки...'))
     user_chat_id = call.data.split(':')[0]
     chat = await get_chat_record(user_chat_id)
-    adv_subscribe_time_remain, auction_subscribe_time_remain = await bot_sub_time_remain(chat)
-    text = ('ads_sub_time: {ads_sub_time}\n'
-            'auct_sub_date: {auct_sub_date}').format(ads_sub_time=0, auct_sub_date=0)
-    kb = back_my_channels_groups_kb
-    if auction_subscribe_time_remain > 0 or adv_subscribe_time_remain > 0:  # якщо є підписка
-        if auction_subscribe_time_remain > 0:
-            sub_date = datetime.datetime.fromtimestamp(auction_subscribe_time_remain).strftime("%d.%m.%Y")
-            text = text.format(auct_sub_date=sub_date)
-        if adv_subscribe_time_remain > 0:
-            sub_date = datetime.datetime.fromtimestamp(adv_subscribe_time_remain).strftime("%d.%m.%Y")
-            text = text.format(ads_sub_time=sub_date)
+    adv_subscribe_time_remain, auction_subscribe_time_remain = chat.ads_sub_time, chat.auction_sub_time
+    text = ('Оголошення {ads_sub_date}\n'
+            'Аукціон {auction_sub_date}')
+    auction_token, ads_token = None, None
+    if auction_subscribe_time_remain > time.time():
+        auction_sub_date = f'активовано до {datetime.datetime.fromtimestamp(chat.auction_sub_time).strftime("%d.%m.%Y")}'
     else:
-        ads_token_approved, auction_token_approved = await get_tokens_approval(chat)
-        if ads_token_approved or auction_token_approved:
-            if ads_token_approved:
-                sub_date = datetime.datetime.fromtimestamp(chat.ads_sub_time).strftime("%d.%m.%Y")
-                await update_chat_sql(user_chat_id, ads_sub_time=604800 + time.time())
-                await call.message.edit_text(text=text.format(ads_sub_date=sub_date),
-                                             reply_markup=back_my_channels_groups_kb)
-            if auction_token_approved:
-                sub_date = datetime.datetime.fromtimestamp(chat.auction_sub_time).strftime("%d.%m.%Y")
-                await update_chat_sql(user_chat_id, auction_sub_time=604800 + time.time())
-                await call.message.edit_text(text=text.format(auct_sub_date=sub_date),
-                                             reply_markup=back_my_channels_groups_kb)
+        auction_token_approved = await get_token_approval(chat, type_='auction')
+        if auction_token_approved:
+            auction_sub_date = f'активовано до {datetime.datetime.fromtimestamp(chat.auction_sub_time).strftime("%d.%m.%Y")}'
+            await update_chat_sql(user_chat_id, auction_sub_time=604800 + time.time())
+        else:
+            auction_sub_date = 'не активовано'
+            auction_token = await get_token_or_create_new(chat.auction_token, user_chat_id, 'auction_token')
+    if adv_subscribe_time_remain > time.time():
+        ads_sub_date = f'активовано до {datetime.datetime.fromtimestamp(chat.ads_sub_time).strftime("%d.%m.%Y")}'
+    else:
+        ads_token_approved = await get_token_approval(chat, type_='ads')
+        if ads_token_approved:
+            ads_sub_date = f'активовано до {datetime.datetime.fromtimestamp(chat.ads_sub_time).strftime("%d.%m.%Y")}'
+            await update_chat_sql(user_chat_id, ads_sub_time=604800 + time.time())
         else:
             ads_token = await get_token_or_create_new(chat.ads_token, user_chat_id, 'ads_token')
-            auction_token = await get_token_or_create_new(chat.auction_token, user_chat_id, 'auction_token')
-            kb = await activate_ad_auction_kb(auction_token=auction_token, ads_token=ads_token,
-                                              back_btn=back_my_channels_groups, user_chat_id=user_chat_id)
-    await bot.send_message(chat_id=call.from_user.id, text=text, reply_markup=kb)
+            ads_sub_date = 'не активовано'
+    text = text.format(auction_sub_date=auction_sub_date, ads_sub_date=ads_sub_date)
 
-    # if ads_token_approved:
-    #     sub_date = datetime.datetime.fromtimestamp(chat.ads_sub_time).strftime("%d.%m.%Y")
-    #     await update_chat_sql(user_chat_id, ads_sub_time=604800 + time.time())
-    #     await call.message.edit_text(text=text.format(sub_date=sub_date), reply_markup=back_my_channels_groups_kb)
-    # if auction_token_approved:
-    #     sub_date = datetime.datetime.fromtimestamp(chat.auction_sub_time).strftime("%d.%m.%Y")
-    #     await update_chat_sql(user_chat_id, auction_sub_time=604800 + time.time())
-    #     await call.message.edit_text(text=text.format(sub_date=sub_date), reply_markup=back_my_channels_groups_kb)
-    # else:
-    #     chat = await get_chat_record(user_chat_id)
-    #     if chat.token:
-    #         status = await get_payment_status(chat.token)
-    #         if status in ('CREATED', 'APPROVED'):
-    #             token = chat.token
-    #         else:
-    #             token = await create_payment_token(usd=1)
-    #             await update_chat_sql(user_chat_id, paypal_token=token)
-    #     else:
-    #         token = await create_payment_token(usd=1)
-    #         await update_chat_sql(user_chat_id, paypal_token=token)
-    #     kb = await payment_kb(token, activate_btn_text=_('🔐 Активувати'),
-    #                           callback_data=f'{user_chat_id}:{token}:bot_subscription_update',
-    #                           back_btn=back_my_channels_groups)
-    #     await call.message.edit_text(text=_('🔴 Статус: не активний.\n'
-    #                                         'Для активації оформіть підписку, натиснувши кнопку «🔐 Активувати» нижче.\n'
-    #                                         'Після активації натисніть 🔄 Оновити статус.'),
-    #                                  reply_markup=kb)
+    kb = await activate_ad_auction_kb(auction_token=auction_token, ads_token=ads_token,
+                                      back_btn=back_my_channels_groups, user_chat_id=user_chat_id)
+    await bot.send_message(chat_id=call.from_user.id, text=text, reply_markup=kb)
 
 
 async def update_bot_subscription_status(call, state: FSMContext):

@@ -1,7 +1,8 @@
 import datetime
 from typing import List, Union, Type, Sequence
 
-from sqlalchemy import String, Integer, Text, ForeignKey, select, update, delete, Boolean, TIMESTAMP, text, func, Index, Enum
+from sqlalchemy import String, Integer, Text, ForeignKey, select, update, delete, Boolean, TIMESTAMP, text, func, Index, \
+    Enum
 from sqlalchemy.dialects.mysql import insert
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncAttrs
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
@@ -32,8 +33,6 @@ class User(Base):
                                                        default=datetime.time(hour=0, minute=10, second=0))
     advert_subscribe_time: Mapped[int] = mapped_column(nullable=False, default='0')
     user_adv_token: Mapped[str] = mapped_column(type_=String(255), nullable=True, unique=True)
-
-    is_admin: Mapped[bool] = mapped_column(nullable=False, default=False)
 
     def __repr__(self):
         return f'<User {self.telegram_id}>'
@@ -129,14 +128,15 @@ class ChannelGroup(Base):
 
     # paypal_token: Mapped[str] = mapped_column(type_=String(255), nullable=True, unique=True)
 
-    auction_sub_time: Mapped[bool] = mapped_column(nullable=False, default='0')
+    auction_sub_time: Mapped[int] = mapped_column(nullable=False, default=0, server_default="0")
     auction_paid: Mapped[bool] = mapped_column(type_=Boolean, default=False)
     auction_token: Mapped[str] = mapped_column(type_=String(255), nullable=True, unique=True)
 
-    ads_sub_time: Mapped[bool] = mapped_column(nullable=False, default='0')
+    ads_sub_time: Mapped[int] = mapped_column(nullable=False, default=0, server_default="0")
     ads_paid: Mapped[bool] = mapped_column(type_=Boolean, default=False)
     ads_token: Mapped[str] = mapped_column(type_=String(255), nullable=True, unique=True)
 
+    free_trial: Mapped[int] = mapped_column(nullable=False, default=0, server_default="0")
 
     def __repr__(self):
         return f'<ChannelGroup {self.id}>'

@@ -18,6 +18,11 @@ from utils.config import ADVERT_CHANNEL, GALLERY_CHANNEL
 from utils.paypal import create_order, get_payment_status, capture, api_domain
 from utils.create_bot import _
 
+checkout_url = 'https://www.sandbox.paypal.com/checkoutnow?token={token}'
+
+
+# checkout_url = 'https://api-m.paypal.com/checkoutnow?token={token}'
+
 
 class IsPrivateChatFilter(BaseFilter):
     async def __call__(self, message: types.Message) -> bool:
@@ -285,7 +290,8 @@ async def payment_completed(paypal_token):
 
 
 async def payment_link_generate(token):
-    return f'https://{api_domain}/checkoutnow?token={token}'
+    logging.info(f'CHECKOUT URL MAY BE TESTING')
+    return checkout_url.format(token=token)
 
 
 async def new_bid_caption(caption, first_name, price, currency, owner_locale, bid_count):
@@ -464,12 +470,10 @@ async def adv_sub_time_remain(user_id):
         return False
 
 
-async def bot_sub_time_remain(chat):
-    adv_sub_time: int = chat.ads_sub_time
-    auction_sub_time: int = chat.auction_sub_time
-    adv_time_remain = adv_sub_time - time.time()
-    auction_time_remain = auction_sub_time - time.time()
-    return adv_time_remain, auction_time_remain
+# async def bot_sub_time_remain(chat):
+#     adv_sub_time: int = chat.ads_sub_time
+#     auction_sub_time: int = chat.auction_sub_time
+#     return adv_sub_time, auction_sub_time
 
 
 async def user_have_approved_adv_token(user_id) -> bool:
@@ -481,10 +485,12 @@ async def user_have_approved_adv_token(user_id) -> bool:
         return False
 
 
-async def get_tokens_approval(chat) -> [bool, bool]:
-    auction_token_approved = await payment_completed(chat.auction_token)
-    ads_token_approved = await payment_completed(chat.ads_token)
-    return ads_token_approved, auction_token_approved
+async def get_token_approval(chat, type_: Literal['auction', 'ads']) -> bool:
+    if type_ == 'auction':
+        token_approved = await payment_completed(chat.auction_token)
+    else:
+        token_approved = await payment_completed(chat.ads_token)
+    return token_approved
 
 
 async def payment_kb(token, activate_btn_text, callback_data, back_btn: InlineKeyboardButton = back_to_main_btn):
@@ -493,7 +499,6 @@ async def payment_kb(token, activate_btn_text, callback_data, back_btn: InlineKe
     pay_btn = InlineKeyboardButton(text=activate_btn_text, url=payment_url)
     pay_kb = InlineKeyboardMarkup(inline_keyboard=[[pay_btn], [update_status_btn], [back_btn]])
     return pay_kb
-
 
 
 async def repost_adv(job_id, username):
@@ -542,8 +547,6 @@ async def build_media_group(photos_id, videos_id, caption):
     for video_id in videos_id:
         media_group.add_video(media=video_id)
     return media_group
-
-
 
 
 async def get_token_or_create_new(token, user_chat_id, token_type: str):
