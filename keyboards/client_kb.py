@@ -1,5 +1,4 @@
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-from keyboards.admin_kb import admin_menu_kb
 
 # from create_bot import _
 
@@ -98,17 +97,6 @@ anti_kb = InlineKeyboardMarkup(inline_keyboard=[[anti_5_btn, anti_10_btn, anti_1
 # delete_question_btn = InlineKeyboardButton(text='🗑 Видалити', callback_data='delete_question')
 # back_to_questions_kb = InlineKeyboardMarkup(inline_keyboard=[[delete_question_btn], [back_to_questions]])
 
-black_list_btn = InlineKeyboardButton(text='🚫 Чорний список', callback_data='deny_user_access')
-payment_on_btn = InlineKeyboardButton(text='Увімкнути оплату', callback_data='on_payment')
-payment_of_btn = InlineKeyboardButton(text='Вимкнути оплату', callback_data='off_payment')
-groups_manage_btn = InlineKeyboardButton(text='Керування групами', callback_data='group_manage')
-add_group = InlineKeyboardButton(text='🔌 Підключити групу', callback_data='add_group')
-monetization = InlineKeyboardButton(text='💰 Монетизація', callback_data='monetization')
-
-my_channels_groups = InlineKeyboardButton(text='Мої групи/канали', callback_data='my_channels_groups')
-
-admin_menu_kb.row(my_channels_groups, add_group).row(monetization, black_list_btn)
-
 adv_30_days = InlineKeyboardButton(text='Оформити на 30 днів', callback_data='2592000')
 subscribe_adv_kb = InlineKeyboardMarkup(inline_keyboard=[[adv_30_days], [cancel_btn]])
 
@@ -139,3 +127,11 @@ group_channels_kb = InlineKeyboardMarkup(inline_keyboard=[[other_channels_groups
 back_group_channels_btn = InlineKeyboardButton(text='« Назад', callback_data='groups_and_channels')
 
 
+pro_sub_btn = InlineKeyboardButton(text='💎 Pro-підписка', callback_data='create_ad')
+create_advert_btn = InlineKeyboardButton(text='📣 Оголошення', callback_data='ad_menu')
+auction_btn = InlineKeyboardButton(text='🏷 Аукціон', callback_data='auction')
+help_btn = InlineKeyboardButton(text='🆘 Допомога', callback_data='help')
+group_channels_btn = InlineKeyboardButton(text='👥 Групи та канали', callback_data='groups_and_channels')
+main_kb = InlineKeyboardMarkup(
+    inline_keyboard=[[auction_btn, create_advert_btn], [group_channels_btn], [pro_sub_btn],
+                     [help_btn]])
