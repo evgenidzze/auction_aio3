@@ -224,7 +224,7 @@ async def my_chat_member_handler(my_chat_member: types.ChatMemberUpdated):
             chat_link = await bot.export_chat_invite_link(chat_id=my_chat_member.chat.id)
             await bot.send_message(chat_id=user_id,
                                    text=_("{title} успішно підключено!").format(
-                                       title=my_chat_member.chat.title), reply_markup=main_kb)
+                                       title=my_chat_member.chat.title), reply_markup=admin_menu_kb.as_markup())
             await create_group_channel(owner_telegram_id=user_id, chat_id=my_chat_member.chat.id,
                                        chat_type=my_chat_member.chat.type, chat_name=my_chat_member.chat.title,
                                        chat_link=chat_link)
