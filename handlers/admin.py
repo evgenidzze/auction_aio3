@@ -2,14 +2,17 @@ import datetime
 import time
 
 from aiogram import types, Router, F
+from aiogram.enums import ChatMemberStatus
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
+from handlers.client_handlers import router
 from utils.create_bot import job_stores, bot, _
-from database.db_manage import get_user, update_user_sql, get_user_chats, get_chat_record, update_chat_sql
+from database.db_manage import get_user, update_user_sql, get_user_chats, get_chat_record, update_chat_sql, \
+    create_group_channel
 # from handlers.client_handlers import ADMINS
 from keyboards.admin_kb import reject_to_admin_btn, back_to_admin_btn, back_to_group_manage_btn, \
     unblock_user_btn, block_user_btn, back_my_channels_groups, back_my_channels_groups_kb, \
@@ -213,6 +216,30 @@ async def update_bot_subscription_status(call, state: FSMContext):
         return
 
 
+@router.my_chat_member()
+async def my_chat_member_handler(my_chat_member: types.ChatMemberUpdated):
+    if my_chat_member.chat.type in ('channel', 'group', 'supergroup'):
+        user_id = my_chat_member.from_user.id
+        if my_chat_member.new_chat_member.status is ChatMemberStatus.ADMINISTRATOR:
+            chat_link = await bot.export_chat_invite_link(chat_id=my_chat_member.chat.id)
+            await bot.send_message(chat_id=user_id,
+                                   text=_("{title} успішно підключено!").format(
+                                       title=my_chat_member.chat.title), reply_markup=main_kb)
+            await create_group_channel(owner_telegram_id=user_id, chat_id=my_chat_member.chat.id,
+                                       chat_type=my_chat_member.chat.type, chat_name=my_chat_member.chat.title,
+                                       chat_link=chat_link)
+        elif my_chat_member.new_chat_member.status is ChatMemberStatus.MEMBER:
+            await bot.send_message(chat_id=user_id,
+                                   text=_(
+                                       "Для того, щоб бот функціонував у групі {title}, потрібно надати йому права адміністратора.").format(
+                                       title=my_chat_member.chat.title))
+        elif my_chat_member.new_chat_member.status is ChatMemberStatus.KICKED:
+            await bot.send_message(chat_id=user_id,
+                                   text=_(
+                                       "Бота відключено з групи {title}.").format(
+                                       title=my_chat_member.chat.title))
+
+
 def register_admin_handlers(r: Router):
     r.message.register(admin, Command('admin'))
     r.callback_query.register(admin, F.data == 'admin')
@@ -225,3 +252,4 @@ def register_admin_handlers(r: Router):
     r.callback_query.register(user_chat_menu, FSMAdmin.user_chat_id)
     r.callback_query.register(update_bot_subscription_status, F.data.endswith('sub_update'))
     r.message.register(user_access, FSMAdmin.user_id)
+
