@@ -28,8 +28,9 @@ from keyboards.client_kb import language_kb, back_to_main_kb, auction_kb, create
     delete_lot_kb, delete_ad_kb, back_to_ready_ad_kb, back_to_ready_kb, back_to_ready_btn, accept_lot_deletion_btn, \
     decline_lot_deletion_btn, anti_kb, back_show_ad_kb, back_show_lot_kb, \
     repost_count_kb, ready_to_publish_ad_kb, publish_adv_btn, reset_to_auction_menu_kb, reset_to_auction_menu_btn, \
-    reset_to_ad_menu_kb, back_to_auction_btn, group_channels_kb, back_group_channels_btn, back_to_ad_menu_btn, ready_to_publish_kb, publish_btn
-from keyboards.admin_kb import main_kb, back_my_channels_groups, back_my_channels_groups_kb
+    reset_to_ad_menu_kb, back_to_auction_btn, group_channels_kb, back_group_channels_btn, back_to_ad_menu_btn, \
+    ready_to_publish_kb, publish_btn, main_kb
+from keyboards.admin_kb import back_my_channels_groups, back_my_channels_groups_kb
 
 from utils.config import AUCTION_CHANNEL, ADVERT_CHANNEL
 from utils.paypal import get_payment_status, create_order
