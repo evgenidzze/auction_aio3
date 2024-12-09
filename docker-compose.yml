@@ -32,5 +32,15 @@ services:
       - redis
     volumes:
       - .:/app
+  webhook:
+    build:
+      context: .
+      dockerfile: Dockerfile.webhook
+    ports:
+      - "8080:8000"
+    depends_on:
+      - redis
+    networks:
+      - app-tier
 volumes:
   my-db:

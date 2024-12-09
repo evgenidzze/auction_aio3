@@ -28,11 +28,11 @@ from keyboards.client_kb import language_kb, back_to_main_kb, auction_kb, create
     delete_lot_kb, delete_ad_kb, back_to_ready_ad_kb, back_to_ready_kb, back_to_ready_btn, accept_lot_deletion_btn, \
     decline_lot_deletion_btn, anti_kb, back_show_ad_kb, back_show_lot_kb, \
     repost_count_kb, ready_to_publish_ad_kb, publish_adv_btn, reset_to_auction_menu_kb, reset_to_auction_menu_btn, \
-    reset_to_ad_menu_kb, back_to_auction_btn, group_channels_kb, back_group_channels_btn, back_to_ad_menu_btn, ready_to_publish_kb, publish_btn
-from keyboards.admin_kb import main_kb, back_my_channels_groups, back_my_channels_groups_kb
+    reset_to_ad_menu_kb, back_to_auction_btn, group_channels_kb, back_group_channels_btn, back_to_ad_menu_btn, \
+    ready_to_publish_kb, publish_btn, main_kb
 
 from utils.config import AUCTION_CHANNEL, ADVERT_CHANNEL
-from utils.paypal import get_payment_status, create_order
+from utils.paypal import get_order_status, create_order
 from utils.utils import create_user_lots_kb, send_post_fsm, \
     send_post, adv_sub_time_remain, user_have_approved_adv_token, send_advert, \
     new_bid_caption, lot_ending, adv_ending, repost_adv, payment_kb, \
@@ -959,7 +959,7 @@ async def new_sniper_time(call: types.CallbackQuery, state: FSMContext):
 async def create_adv_sub(call: types.CallbackQuery, state: FSMContext):
     user = await get_user(call.from_user.id)
     if user.user_adv_token:
-        status = await get_payment_status(user.user_adv_token)
+        status = await get_order_status(user.user_adv_token)
         if status in ('CREATED', 'APPROVED'):
             token = user.user_adv_token
         else:

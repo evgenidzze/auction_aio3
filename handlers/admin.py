@@ -8,14 +8,15 @@ from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
+from keyboards.client_kb import main_kb
 from utils.create_bot import job_stores, bot, _
 from database.db_manage import get_user, update_user_sql, get_user_chats, get_chat_record, update_chat_sql
 # from handlers.client_handlers import ADMINS
-from keyboards.admin_kb import main_kb, reject_to_admin_btn, back_to_admin_btn, back_to_group_manage_btn, \
+from keyboards.admin_kb import reject_to_admin_btn, back_to_admin_btn, back_to_group_manage_btn, \
     unblock_user_btn, block_user_btn, admin_menu_kb, back_my_channels_groups, back_my_channels_groups_kb, \
     activate_ad_auction_kb
-from utils.paypal import get_payment_status, create_order
-from utils.utils import  get_token_approval, payment_completed, \
+from utils.paypal import get_order_status, create_order, create_partner_referral_url_and_token, user_is_partner
+from utils.utils import get_token_approval, payment_completed, \
     get_token_or_create_new
 
 
@@ -212,14 +213,44 @@ async def update_bot_subscription_status(call, state: FSMContext):
         return
 
 
+async def not_registered_partner(message: types.Message):
+    referral_data = await create_partner_referral_url_and_token(message.from_user.id)
+    reg_url = referral_data.get('url')
+    await message.answer(text='Щоб стати партнером зареєструйтесь в PayPal по посиланню\n'
+                              '{reg_url}'.format(reg_url=reg_url),
+                         reply_markup=InlineKeyboardMarkup(inline_keyboard=[[back_to_admin_btn]]))
+
+
+async def monetization(call: types.CallbackQuery):
+    is_partner = await user_is_partner(call.from_user.id)
+    if is_partner:
+        await call.message.edit_text(text='Вітаю, ви партнер!',
+                                     reply_markup=InlineKeyboardMarkup(inline_keyboard=[[back_to_admin_btn]]))
+    else:
+        referral_data = await create_partner_referral_url_and_token(call.from_user.id)
+        # referral_data = await create_partner_referral_url_and_token('12312312')
+        reg_url = referral_data.get('url')
+        builder = InlineKeyboardBuilder()
+        builder.button(text='Активувати PayPal', url=reg_url)
+        builder.add(back_to_admin_btn)
+        builder.adjust(1)
+        await call.message.edit_text(
+            text="Щоб стати партнером зареєструйтесь в PayPal по посиланню або під'єднайте існуючий аккаунт.\n"
+                 "Після активації ви отримаєте повідомлення.\n"
+                 "<b><a href='{reg_url}'>Активувати PayPal</a></b>".format(reg_url=reg_url),
+            reply_markup=builder.as_markup())
+
+
 def register_admin_handlers(r: Router):
     r.message.register(admin, Command('admin'))
+    r.message.register(not_registered_partner, Command('not_registered_partner'))
     r.callback_query.register(admin, F.data == 'admin')
     r.callback_query.register(change_user_access, F.data.startswith('access'))
     r.callback_query.register(my_channels_groups, F.data == 'my_channels_groups')
     r.callback_query.register(deny_user_access, F.data == 'deny_user_access')
     r.callback_query.register(payment_tumbler, F.data.endswith('_payment'))
     r.callback_query.register(add_group, F.data == 'add_group')
+    r.callback_query.register(monetization, F.data == 'monetization')
     r.callback_query.register(group_id_settings, FSMAdmin.group_id_settings)
     r.callback_query.register(user_chat_menu, FSMAdmin.user_chat_id)
     r.callback_query.register(update_bot_subscription_status, F.data.endswith('sub_update'))

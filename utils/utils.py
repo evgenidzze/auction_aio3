@@ -12,10 +12,9 @@ from aiogram.utils.media_group import MediaGroupBuilder
 from utils.create_bot import bot, scheduler, job_stores
 from database.db_manage import get_lot, get_user, update_lot_sql, get_adv, update_adv_sql, get_chat_record, \
     delete_record_by_id, Lot, Advertisement, update_chat_sql
-from keyboards.client_kb import decline_lot_btn, accept_lot_btn, back_to_main_btn
-from keyboards.admin_kb import main_kb
+from keyboards.client_kb import decline_lot_btn, accept_lot_btn, back_to_main_btn, main_kb
 from utils.config import ADVERT_CHANNEL, GALLERY_CHANNEL
-from utils.paypal import create_order, get_payment_status, capture, api_domain
+from utils.paypal import create_order, get_order_status, capture, api_domain
 from utils.create_bot import _
 
 checkout_url = 'https://www.sandbox.paypal.com/checkoutnow?token={token}'
@@ -283,7 +282,7 @@ async def contact_payment_kb_generate(bidder_telegram_id, token, lot_id, owner_l
 async def payment_completed(paypal_token):
     if paypal_token:
         await capture(order_id=paypal_token)
-        status = await get_payment_status(paypal_token)
+        status = await get_order_status(paypal_token)
         return True if status == 'COMPLETED' else False
     else:
         return False
@@ -550,14 +549,12 @@ async def build_media_group(photos_id, videos_id, caption):
 
 
 async def get_token_or_create_new(token, user_chat_id, token_type: str):
-    """
-    Перевіряє стан токена та створює новий, якщо потрібно.
-    Оновлює запис чату у базі даних із новим токеном.
-    """
     if token:
-        status = await get_payment_status(token)
+        status = await get_order_status(token)
         if status in ('CREATED', 'APPROVED'):
             return token
     new_token = await create_order(usd=1)
     await update_chat_sql(user_chat_id, **{token_type: new_token})
     return new_token
+
+
