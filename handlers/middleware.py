@@ -13,24 +13,24 @@ from utils.create_bot import i18n
 from utils.utils import translate_kb
 
 
-# class HiddenUser(BaseMiddleware):
-#     async def on_process_message(self, message: types.Message, data):
-#         from keyboards.admin_kb import main_kb
-#
-#         if not message.from_user.username:
-#             await message.answer(text=_(
-#                 "Щоб користуватись ботом потрібно створити або зробити публічним юзернейм у вашому телеграм акаунті."),
-#                 reply_markup=main_kb)
-#             raise CancelHandler()
-#
-#     async def on_process_callback_query(self, query: types.CallbackQuery, data):
-#         from keyboards.admin_kb import main_kb
-#         if not query.from_user.username:
-#             await query.message.answer(
-#                 text=_(
-#                     "Щоб користуватись ботом потрібно створити або зробити публічним юзернейм у вашому телеграм акаунті."),
-#                 reply_markup=main_kb)
-#             raise CancelHandler()
+class HiddenUser(BaseMiddleware):
+    async def on_process_message(self, message: types.Message, data):
+        from keyboards.client_kb import main_kb
+
+        if not message.from_user.username:
+            await message.answer(text=_(
+                "Щоб користуватись ботом потрібно створити або зробити публічним юзернейм у вашому телеграм акаунті."),
+                reply_markup=main_kb)
+            raise CancelHandler()
+
+    async def on_process_callback_query(self, query: types.CallbackQuery, data):
+        from keyboards.client_kb import main_kb
+        if not query.from_user.username:
+            await query.message.answer(
+                text=_(
+                    "Щоб користуватись ботом потрібно створити або зробити публічним юзернейм у вашому телеграм акаунті."),
+                reply_markup=main_kb)
+            raise CancelHandler()
 
 
 class ChangeLanguageMiddleware(BaseRequestMiddleware):

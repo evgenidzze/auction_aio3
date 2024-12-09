@@ -7,7 +7,7 @@ from random import randint
 from typing import List
 
 from aiogram import Router, types, F
-from aiogram.enums import ChatMemberStatus, ContentType
+from aiogram.enums import ContentType
 from aiogram.filters import CommandStart, Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -20,8 +20,7 @@ from utils.create_bot import scheduler, _, i18n, bot, job_stores
 from database.db_manage import insert_or_update_user, get_user_lots, get_user, create_lot, get_user_ads, \
     update_user_sql, get_lot, create_adv, make_bid_sql, \
     get_adv, update_lot_sql, update_adv_sql, \
-    create_group_channel, get_user_chats, get_all_chats, get_chat_record, update_chat_sql, \
-    delete_record_by_id, Lot, Advertisement
+    get_all_chats, delete_record_by_id, Lot, Advertisement
 from keyboards.client_kb import language_kb, back_to_main_kb, auction_kb, create_auction_btn, \
     currency_kb, lot_time_kb, cancel_btn, add_menu_kb, create_advert_btn, \
     subscribe_adv_kb, yes_no_kb, \
@@ -1162,30 +1161,6 @@ async def save_repost_count(call: types.CallbackQuery, state: FSMContext):
     await send_post_fsm(fsm_data, call.from_user.id, is_ad=True)
     await bot.send_message(chat_id=call.from_user.id, text=text, reply_markup=kb,
                            reply_to_message_id=last_message_id)
-
-
-@router.my_chat_member()
-async def my_chat_member_handler(my_chat_member: types.ChatMemberUpdated):
-    if my_chat_member.chat.type in ('channel', 'group', 'supergroup'):
-        user_id = my_chat_member.from_user.id
-        if my_chat_member.new_chat_member.status is ChatMemberStatus.ADMINISTRATOR:
-            chat_link = await bot.export_chat_invite_link(chat_id=my_chat_member.chat.id)
-            await bot.send_message(chat_id=user_id,
-                                   text=_("{title} успішно підключено!").format(
-                                       title=my_chat_member.chat.title))
-            await create_group_channel(owner_telegram_id=user_id, chat_id=my_chat_member.chat.id,
-                                       chat_type=my_chat_member.chat.type, chat_name=my_chat_member.chat.title,
-                                       chat_link=chat_link)
-        elif my_chat_member.new_chat_member.status is ChatMemberStatus.MEMBER:
-            await bot.send_message(chat_id=user_id,
-                                   text=_(
-                                       "Для того, щоб бот функціонував у групі {title}, потрібно надати йому права адміністратора.").format(
-                                       title=my_chat_member.chat.title))
-        elif my_chat_member.new_chat_member.status is ChatMemberStatus.KICKED:
-            await bot.send_message(chat_id=user_id,
-                                   text=_(
-                                       "Бота відключено з групи {title}.").format(
-                                       title=my_chat_member.chat.title))
 
 
 async def groups_and_channels(call: types.CallbackQuery):
