@@ -22,6 +22,22 @@ class Base(AsyncAttrs, DeclarativeBase):
 
 
 class User(Base):
+    """
+    Модель користувача.
+
+    Атрибути:
+        telegram_id (int): Унікальний Telegram ID користувача.
+        language (str): Мова інтерфейсу, обрана користувачем.
+        created_at (datetime): Дата і час створення запису.
+        updated_at (datetime): Дата і час останнього оновлення запису.
+        is_blocked (bool): Прапорець блокування користувача.
+        reserve_time_minute (datetime.time): Час резерву лота.
+        anti_sniper (datetime.time): Час антиснайпера.
+        advert_subscribe_time (int): Час життя платіжного токену.
+        user_adv_token (str): Токен користувача оплати.
+        partner_referral_token (str): Токен реферального посилання.
+        merchant_id (str): ID активованого мерчанта.
+    """
     __tablename__ = 'User'
     id: Mapped[int] = mapped_column(primary_key=True, nullable=False, autoincrement=True)
     telegram_id: Mapped[str] = mapped_column(primary_key=True, type_=String(45), nullable=False, unique=True)
@@ -40,36 +56,34 @@ class User(Base):
         return f'<User {self.telegram_id}>'
 
 
-# class Question(Base):
-#     __tablename__ = 'Question'
-#     id: Mapped[int] = mapped_column(Integer, primary_key=True, nullable=False, autoincrement=True)
-#     question: Mapped[str] = mapped_column(String(255), nullable=False)
-#     sender_id: Mapped[str] = mapped_column(String(45), nullable=False)
-#     lot_id: Mapped[int] = mapped_column(Integer, ForeignKey('Lot.id', ondelete='CASCADE', onupdate='RESTRICT'),
-#                                         nullable=False)
-#     recipient_id: Mapped[str] = mapped_column(String(45), nullable=False)
-#
-#     __table_args__ = (
-#         Index('lot_idx', lot_id, unique=False),
-#     )
-
-
-# class Answer(Base):
-#     __tablename__ = 'Answer'
-#
-#     id: Mapped[int] = mapped_column(Integer, primary_key=True, nullable=False, autoincrement=True)
-#     answer: Mapped[str] = mapped_column(String(255), nullable=False)
-#     sender_id: Mapped[str] = mapped_column(String(45), nullable=False)
-#     recipient_id: Mapped[str] = mapped_column(String(45), nullable=False)
-#     lot_id: Mapped[int] = mapped_column(Integer, ForeignKey('Lot.id', ondelete='CASCADE', onupdate='RESTRICT'),
-#                                         nullable=False)
-#
-#     __table_args__ = (
-#         Index('fk_Answer_1_idx', 'lot_id'),
-#     )
-
-
 class Lot(Base):
+    """
+    Модель лота.
+
+    Атрибути:
+        id (int): Унікальний ідентифікатор лота.
+        owner_id (int): Telegram ID власника лота.
+        title (str): Назва лота.
+        description (str): Опис лота.
+        start_price (float): Початкова ціна лота.
+        current_price (float): Поточна ціна лота.
+        bid_count (int): Кількість зроблених ставок.
+        created_at (datetime): Дата і час створення лота.
+        updated_at (datetime): Дата і час останнього оновлення.
+        approved (bool): Прапорець схвалення лота.
+        photo_id (str): ID фото лота.
+        video_id (str): ID відео лота.
+        price_steps (str): Кроки ціни лота.
+        lot_time_living (int): Час життя лота.
+        bid_time (datetime): Дата і час останньої ставки.
+        lot_link (str): Посилання на лот.
+        message_id (str): ID повідомлення лота.
+        paypal_token (str): Токен PayPal.
+        currency (str): Валюта лота.
+        city (str): Місто лота.
+        photos_link (str): Посилання на фото лота.
+        new_text (str): Новий текст лота.
+    """
     __tablename__ = 'Lot'
     id: Mapped[int] = mapped_column(primary_key=True, nullable=False, autoincrement=True)
     owner_telegram_id: Mapped[str] = mapped_column(String(45), ForeignKey('User.telegram_id', ondelete='CASCADE',
@@ -97,6 +111,10 @@ class Lot(Base):
 
 
 class Advertisement(Base):
+    """
+    Модель ...
+    """
+    # TODO: Це для чого?
     __tablename__ = 'Advertisement'
     id: Mapped[int] = mapped_column(primary_key=True, nullable=False, autoincrement=True, unique=True)
     owner_telegram_id: Mapped[str] = mapped_column(ForeignKey('User.telegram_id'), nullable=False)
@@ -119,6 +137,24 @@ class GroupType(PyEnum):
 
 
 class ChannelGroup(Base):
+    """
+    Модель групового чату.
+
+    Атрибути:
+        id (int): Унікальний ідентифікатор чату.
+        chat_name (str): Назва чату.
+        owner_telegram_id (str): Telegram ID власника чату.
+        chat_id (str): Унікальний ідентифікатор чату.
+        chat_type (str): Тип чату (group, channel, або supergroup).
+        chat_link (str): Посилання на чат.
+        auction_sub_time (int): Час підписки на аукціон.
+        auction_paid (bool): Прапорець оплати аукціону.
+        auction_token (str): Токен аукціону.
+        ads_sub_time (int): Час підписки на ...........
+        ads_paid (bool): Прапорець оплати на ..........
+        ads_token (str): Токен реклами.
+        free_trial (int): Час безкоштовної підписки.
+    """
     __tablename__ = 'ChannelGroup'
     id: Mapped[int] = mapped_column(primary_key=True, nullable=False, autoincrement=True, unique=True)
     chat_name: Mapped[str] = mapped_column(nullable=True, type_=String(255))
@@ -144,7 +180,21 @@ class ChannelGroup(Base):
         return f'<ChannelGroup {self.id}>'
 
 
+########################################################################################################################
+# FUNCTIONS FOR DATABASE                                                                                               #
+########################################################################################################################
+
+
 async def create_group_channel(owner_telegram_id, chat_id, chat_type, chat_name, chat_link=None):
+    """
+    Створює або оновлює запис для групового чату чи каналу.
+
+    :param owner_telegram_id: Telegram ID власника чату.
+    :param chat_id: Унікальний ідентифікатор чату.
+    :param chat_type: Тип чату (group, channel, або supergroup).
+    :param chat_name: Назва чату.
+    :param chat_link: Посилання на чат (опціонально).
+    """
     async with async_session() as session:
         new_chat = ChannelGroup
         stmt = insert(new_chat).values(
@@ -164,6 +214,12 @@ async def create_group_channel(owner_telegram_id, chat_id, chat_type, chat_name,
 
 
 async def insert_or_update_user(telegram_id, language):
+    """
+    Додає нового користувача або оновлює його мову в системі.
+
+    :param telegram_id: Унікальний Telegram ID користувача.
+    :param language: Мова, обрана користувачем.
+    """
     async with async_session() as session:
         new_user = User
         stmt = insert(new_user).values(
@@ -178,6 +234,12 @@ async def insert_or_update_user(telegram_id, language):
 
 
 async def update_user_sql(telegram_id, **kwargs):
+    """
+    Оновлює інформацію про користувача на основі вхідних параметрів.
+
+    :param telegram_id: Telegram ID користувача.
+    :param kwargs: Поля, які потрібно оновити (ключ-значення).
+    """
     async with async_session() as session:
         stmt = update(User).where(User.telegram_id == telegram_id).values(kwargs)
         await session.execute(stmt)
@@ -186,6 +248,12 @@ async def update_user_sql(telegram_id, **kwargs):
 
 
 async def update_lot_sql(lot_id, **kwargs):
+    """
+    Оновлює дані лота на основі його унікального ID.
+
+    :param lot_id: Унікальний ідентифікатор лота.
+    :param kwargs: Поля, які потрібно оновити (ключ-значення).
+    """
     async with async_session() as session:
         stmt = update(Lot).where(Lot.id == lot_id).values(kwargs)
         await session.execute(stmt)
@@ -194,6 +262,12 @@ async def update_lot_sql(lot_id, **kwargs):
 
 
 async def update_adv_sql(adv_id, **kwargs):
+    """
+    Оновлює інформацію про рекламу на основі її унікального ID.
+
+    :param adv_id: Унікальний ідентифікатор реклами.
+    :param kwargs: Поля, які потрібно оновити (ключ-значення).
+    """
     async with async_session() as session:
         stmt = update(Advertisement).where(Advertisement.id == adv_id).values(kwargs)
         await session.execute(stmt)
@@ -202,6 +276,13 @@ async def update_adv_sql(adv_id, **kwargs):
 
 
 async def create_lot(fsm_data, owner_id):
+    """
+    Створює новий запис для лота у системі.
+
+    :param fsm_data: Дані лота, отримані з FSM (Finite State Machine).
+    :param owner_id: Telegram ID власника лота.
+    :return: ID створеного лота у вигляді рядка.
+    """
     async with async_session() as session:
         new_lot = Lot(
             owner_telegram_id=owner_id,
@@ -225,6 +306,13 @@ async def create_lot(fsm_data, owner_id):
 
 
 async def create_adv(owner_id, fsm_data):
+    """
+    Створює новий запис для реклами у системі.
+
+    :param owner_id: Telegram ID власника реклами.
+    :param fsm_data: Дані реклами, отримані з FSM.
+    :return: ID створеної реклами у вигляді рядка.
+    """
     async with async_session() as session:
         new_adv = Advertisement(
             owner_telegram_id=owner_id,
@@ -243,6 +331,12 @@ async def create_adv(owner_id, fsm_data):
 
 
 async def get_lot(lot_id) -> Lot:
+    """
+    Отримує дані лота з бази за його унікальним ID.
+
+    :param lot_id: Унікальний ідентифікатор лота.
+    :return: Об'єкт Lot або None, якщо запис не знайдено.
+    """
     async with async_session() as session:
         stmt = select(Lot).where(Lot.id == lot_id)
         execute = await session.execute(stmt)
@@ -252,6 +346,12 @@ async def get_lot(lot_id) -> Lot:
 
 
 async def get_adv(adv_id) -> Advertisement:
+    """
+    Отримує дані реклами з бази за її унікальним ID.
+
+    :param adv_id: Унікальний ідентифікатор реклами.
+    :return: Об'єкт Advertisement або None, якщо запис не знайдено.
+    """
     async with async_session() as session:
         stmt = select(Advertisement).where(Advertisement.id == adv_id)
         execute = await session.execute(stmt)
@@ -261,6 +361,12 @@ async def get_adv(adv_id) -> Advertisement:
 
 
 async def get_user_ads(user_id):
+    """
+    Отримує всі рекламні оголошення, створені користувачем.
+
+    :param user_id: Telegram ID користувача.
+    :return: Список об'єктів Advertisement.
+    """
     async with async_session() as session:
         stmt = select(Advertisement).where(Advertisement.owner_telegram_id == user_id)
         res = await session.execute(stmt)
@@ -268,6 +374,12 @@ async def get_user_ads(user_id):
 
 
 async def get_user_lots(user_id):
+    """
+    Отримує всі лоти, створені користувачем.
+
+    :param user_id: Telegram ID користувача.
+    :return: Список об'єктів Lot.
+    """
     async with async_session() as session:
         stmt = select(Lot).where(Lot.owner_telegram_id == user_id)
         res = await session.execute(stmt)
@@ -275,6 +387,14 @@ async def get_user_lots(user_id):
 
 
 async def make_bid_sql(lot_id, price, bidder_id, bid_count):
+    """
+    Оновлює ставку на лот із зазначенням нової ціни, користувача, що зробив ставку, та кількості ставок.
+
+    :param lot_id: Унікальний ідентифікатор лота.
+    :param price: Нова ціна ставки.
+    :param bidder_id: Telegram ID користувача, що зробив ставку.
+    :param bid_count: Поточна кількість ставок на лот.
+    """
     async with async_session() as session:
         stmt = update(Lot).where(Lot.id == lot_id).values(last_bid=price, bidder_telegram_id=bidder_id,
                                                           bid_count=bid_count + 1)
@@ -284,6 +404,12 @@ async def make_bid_sql(lot_id, price, bidder_id, bid_count):
 
 
 async def get_last_bid(lot_id):
+    """
+    Отримує останню зроблену ставку на вказаний лот.
+
+    :param lot_id: Унікальний ідентифікатор лота.
+    :return: Об'єкт Lot з останньою ставкою.
+    """
     async with async_session() as session:
         stmt = select(Lot).where(Lot.id == lot_id)
         res = await session.execute(stmt)
@@ -291,6 +417,12 @@ async def get_last_bid(lot_id):
 
 
 async def get_user(user_id) -> User:
+    """
+    Отримує інформацію про користувача за його Telegram ID.
+
+    :param user_id: Telegram ID користувача.
+    :return: Об'єкт User або None, якщо запис не знайдено.
+    """
     async with async_session() as session:
         stmt = select(User).where(User.telegram_id == user_id)
         res = await session.execute(stmt)
@@ -299,79 +431,21 @@ async def get_user(user_id) -> User:
             return user[0]
 
 
-# async def create_question(question, sender_id, lot_id, owner_id):
-#     async with async_session() as session:
-#         new_question = Question(
-#             question=question,
-#             sender_id=sender_id,
-#             lot_id=lot_id,
-#             recipient_id=owner_id
-#         )
-#         session.add(new_question)
-#         await session.commit()
-#         await session.refresh(new_question)
-#         await session.close()
-#         return str(new_question.id)
-
-
-# async def create_answer(answer, sender_id, lot_id, recipient_id):
-#     async with async_session() as session:
-#         new_question = Answer(
-#             answer=answer,
-#             sender_id=sender_id,
-#             lot_id=lot_id,
-#             recipient_id=recipient_id,
-#         )
-#         session.add(new_question)
-#         await session.commit()
-#         await session.refresh(new_question)
-#         await session.close()
-#         return str(new_question.id)
-
-
-# async def get_question(question_id):
-#     async with async_session() as session:
-#         stmt = select(Question).where(Question.id == question_id)
-#         res = await session.execute(stmt)
-#         question = res.scalars().first()
-#         return question
-
-
-# async def get_question_or_answer(recipient_id, model_name: str):
-#     model = Answer if model_name == 'answer' else Question
-#     async with async_session() as session:
-#         stmt = select(model).where(model.recipient_id == recipient_id)
-#         res = await session.execute(stmt)
-#         res = res.scalars().all()
-#         return res
-
-
-# async def get_answer(answer_id):
-#     async with async_session() as session:
-#         stmt = select(Answer).where(Answer.id == answer_id)
-#         res = await session.execute(stmt)
-#         answer = res.scalars().first()
-#         return answer
-
-
 async def on_startup():
+    """
+    Виконує ініціалізацію бази даних під час запуску програми, створюючи всі необхідні таблиці.
+    """
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
 
-# async def messages_count(owner_id, mess_type):
-#     async with async_session() as session:
-#         if mess_type == 'answer':
-#             model = Answer
-#         elif mess_type == 'question':
-#             model = Question
-#         stmt = select(func.count("*")).select_from(model).where(model.recipient_id == owner_id)
-#
-#         res = await session.execute(stmt)
-#         return res.scalars().all()[0]
-
-
 async def delete_record_by_id(rec_id, table: Type[Union[Lot, Advertisement]]):
+    """
+    Видаляє запис із бази за його ID та типом таблиці.
+
+    :param rec_id: Унікальний ідентифікатор запису.
+    :param table: Клас таблиці, з якої потрібно видалити запис.
+    """
     async with async_session() as session:
         stmt = delete(table).where(table.id == rec_id)
         await session.execute(stmt)
@@ -380,6 +454,12 @@ async def delete_record_by_id(rec_id, table: Type[Union[Lot, Advertisement]]):
 
 
 async def get_user_chats(user_id) -> List[ChannelGroup]:
+    """
+    Отримує всі чати, пов'язані з вказаним користувачем.
+
+    :param user_id: Telegram ID користувача.
+    :return: Список об'єктів ChannelGroup.
+    """
     async with async_session() as session:
         stmt = select(ChannelGroup).where(ChannelGroup.owner_telegram_id == user_id)
         res = await session.execute(stmt)
@@ -388,6 +468,11 @@ async def get_user_chats(user_id) -> List[ChannelGroup]:
 
 
 async def get_all_chats() -> List[ChannelGroup]:
+    """
+    Отримує список усіх активних чатів, які мають посилання.
+
+    :return: Список об'єктів ChannelGroup.
+    """
     async with async_session() as session:
         stmt = select(ChannelGroup).where(ChannelGroup.chat_link != None)
         res = await session.execute(stmt)
@@ -396,6 +481,12 @@ async def get_all_chats() -> List[ChannelGroup]:
 
 
 async def get_chat_record(chat_id):
+    """
+    Отримує інформацію про чат із бази за його ID.
+
+    :param chat_id: Унікальний ідентифікатор чату.
+    :return: Об'єкт ChannelGroup або None, якщо запис не знайдено.
+    """
     async with async_session() as session:
         stmt = select(ChannelGroup).where(ChannelGroup.chat_id == chat_id)
         res = await session.execute(stmt)
@@ -404,8 +495,27 @@ async def get_chat_record(chat_id):
 
 
 async def update_chat_sql(chat_id, **kwargs):
+    """
+    Оновлює інформацію про чат у базі за його ID.
+
+    :param chat_id: Унікальний ідентифікатор чату.
+    :param kwargs: Поля, які потрібно оновити (ключ-значення).
+    """
     async with async_session() as session:
         stmt = update(ChannelGroup).where(ChannelGroup.chat_id == chat_id).values(kwargs)
         await session.execute(stmt)
         await session.commit()
         await session.close()
+
+
+async def get_group_by_chat_id(chat_id) -> ChannelGroup:
+    """
+    Отримує інформацію про групу за її ID.
+
+    :param chat_id: Унікальний ідентифікатор чату.
+    :return: Об'єкт ChannelGroup або None, якщо запис не знайдено.
+    """
+    async with async_session() as session:
+        stmt = select(ChannelGroup).where(ChannelGroup.chat_id == chat_id)
+        res = await session.execute(stmt)
+        return res.fetchone()[0]

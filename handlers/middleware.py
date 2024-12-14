@@ -63,3 +63,50 @@ class Localization(I18nMiddleware):
         else:
             locale = 'en'
         return locale
+
+
+
+# TODO: Можливо це винести в окремий файл?
+import functools
+from datetime import datetime
+from typing import Callable, List
+from aiogram.types import Message
+from database.db_manage import get_group_by_chat_id
+
+
+def subscription_required(subscription_types: List[str]):
+    """
+    Декоратор для перевірки наявності необхідної підписки.
+
+    :param subscription_types: Список типів підписок, які необхідно перевірити ("auction", "ads", "free_trial").
+    """
+    def decorator(func: Callable):
+        @functools.wraps(func)
+        async def wrapper(message: Message, *args, **kwargs):
+            chat = await get_group_by_chat_id(message.chat.id)  # Заміна на вашу функцію отримання групи
+
+            if "free_trial" in subscription_types:
+                if not chat.free_trial or datetime.utcnow().timestamp() > chat.free_trial:
+                    # Пробна підписка для цієї групи закінчилася. Оформіть підписку, щоб продовжити.
+                    print("Пробна підписка для цієї групи закінчилася. Оформіть підписку, щоб продовжити.")
+                    return
+
+            if "auction" in subscription_types:
+                if not chat.auction_paid:
+                    # Ця функція доступна лише для груп з активною підпискою на лоти.
+                    print("Ця функція доступна лише для груп з активною підпискою на лоти.")
+                    return
+
+            if "ads" in subscription_types:
+                if not chat.ads_paid:
+                    # Ця функція доступна лише для груп з активною підпискою на інші функції.
+                    print("Ця функція доступна лише для груп з активною підпискою на інші функції.")
+                    return
+
+            # Якщо перевірки успішні, виконуємо основну функцію
+            return await func(message, *args, **kwargs)
+
+        return wrapper
+
+    return decorator
+
