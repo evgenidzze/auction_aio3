@@ -74,6 +74,7 @@ from aiogram.types import Message
 from database.db_manage import get_chat_record
 
 
+# TODO: Накладіть цей декоратор на ваші функції, які вимагають підписки. Приклад використання: @subscription_group_required("auction", "ads")
 def subscription_group_required(*subscription_types: List[str]):
     """
     Декоратор для перевірки наявності необхідної підписки.

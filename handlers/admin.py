@@ -33,6 +33,9 @@ class FSMAdmin(StatesGroup):
 
 
 async def admin(message: types.Message, state):
+    if message.chat.type != 'private':
+        return None
+
     await state.clear()
     if isinstance(message, types.Message):
         await message.answer(text='Меню адміністратора', reply_markup=admin_menu_kb.as_markup())
@@ -190,6 +193,11 @@ async def update_bot_subscription_status(call, state: FSMContext):
 
 @router.my_chat_member()
 async def my_chat_member_handler(my_chat_member: types.ChatMemberUpdated):
+    """
+    Обробка подій приєднання бота до групи.
+
+    Приєднання зараховується, якщо бот має права адміністратора.
+    """
     if my_chat_member.chat.type not in {'channel', 'group', 'supergroup'}:
         return
 
@@ -254,7 +262,7 @@ async def my_chat_member_handler(my_chat_member: types.ChatMemberUpdated):
 
 async def handle_subscription_group(callback_query: types.CallbackQuery):
     """
-    Обробка підписки на групу.
+    Обробка кнопок підписки на групу.
     """
     chat_id = callback_query.from_user.id
 
@@ -266,7 +274,6 @@ async def handle_subscription_group(callback_query: types.CallbackQuery):
 
     if type_subscribe == 'trial':
         chat_data = await get_chat_record(group_id)
-        print(chat_data)
         if chat_data.free_trial > 0:
             await callback_query.message.edit_text(
                 text=_("Пробний період вже було використано."),
