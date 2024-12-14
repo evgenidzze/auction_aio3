@@ -38,6 +38,10 @@ from utils.utils import create_user_lots_kb, send_post_fsm, \
     payment_completed, create_price_step_kb, gather_media_from_messages, is_media_count_allowed, \
     IsPrivateChatFilter, IsMessageType
 
+
+from handlers.middleware import subscription_group_required
+
+
 ADMINS = [397875584, 432530900]
 locale.setlocale(locale.LC_ALL, 'uk_UA.utf8')
 router = Router()
@@ -1270,3 +1274,4 @@ def register_client_handlers(r: Router):
 
     r.callback_query.register(groups_and_channels, F.data == 'groups_and_channels')
     r.callback_query.register(other_channels_groups, F.data == 'other_channels_groups')
+

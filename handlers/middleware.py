@@ -77,9 +77,11 @@ from database.db_manage import get_chat_record
 # TODO: Накладіть цей декоратор на ваші функції, які вимагають підписки. Приклад використання: @subscription_group_required("auction", "ads")
 def subscription_group_required(*subscription_types: List[str]):
     """
-    Декоратор для перевірки наявності необхідної підписки.
+    Декоратор для функцій, які вимагають підписку на групу. Перевіряє наявність підписки у групи, з якої було викликано
+    функцію. Якщо підписка наявна, викликає функцію.
 
-    :param subscription_types: Список типів підписок, які необхідно перевірити ("auction", "ads", "free_trial").
+    :param subscription_types: Список типів підписок, які вимагаються для доступу до функції.
+    Доступні значення: "free_trial", "auction", "ads".
     """
     def decorator(func: Callable):
         @functools.wraps(func)
@@ -87,25 +89,21 @@ def subscription_group_required(*subscription_types: List[str]):
             chat = await get_chat_record(message.chat.id)  # Заміна на вашу функцію отримання групи
 
             if "free_trial" in subscription_types:
-                if not chat.free_trial or datetime.utcnow().timestamp() > chat.free_trial:
-                    # Пробна підписка для цієї групи закінчилася. Оформіть підписку, щоб продовжити.
-                    print("Пробна підписка для цієї групи закінчилася. Оформіть підписку, щоб продовжити.") # TODO: delete
-                    return
+                if chat.free_trial or datetime.utcnow().timestamp() < chat.free_trial:
+                    # Ця функція доступна для груп з активним пробним періодом.
+                    return await func(message, *args, **kwargs)
 
             if "auction" in subscription_types:
-                if not chat.auction_paid:
-                    # Ця функція доступна лише для груп з активною підпискою на лоти.
-                    print("Ця функція доступна лише для груп з активною підпискою на лоти.") # TODO: delete
-                    return
+                if chat.auction_paid:
+                    # Ця функція доступна для груп з активною підпискою на лоти.
+                    return await func(message, *args, **kwargs)
 
             if "ads" in subscription_types:
-                if not chat.ads_paid:
-                    # Ця функція доступна лише для груп з активною підпискою на оголошення.
-                    print("Ця функція доступна лише для груп з активною підпискою на інші функції.") # TODO: delete
-                    return
+                if chat.ads_paid:
+                    # Ця функція доступна для груп з активною підпискою на оголошення.
+                    return await func(message, *args, **kwargs)
 
-            # Якщо перевірки успішні, виконуємо основну функцію
-            return await func(message, *args, **kwargs)
+            return None
 
         return wrapper
 
