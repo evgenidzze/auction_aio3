@@ -3,6 +3,18 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from utils.create_bot import _
 
+
+def create_subscription_group_buttons_kb(chat_id, is_trial=False):
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text='🔑 Пробний період (14 днів)', callback_data=f'subscription_group_trial_14_{chat_id}')]  if is_trial else [],
+        [InlineKeyboardButton(text='🔑 Універсальна підписка (1 місяць)', callback_data=f'subscription_group_universal_30_{chat_id}')],
+        [InlineKeyboardButton(text='🔑 Підписка на аукціон (1 місяць)', callback_data=f'subscription_group_auction_30_{chat_id}')],
+        [InlineKeyboardButton(text='🔑 Підписка на оголошення (1 місяць)', callback_data=f'subscription_group_ads_30_{chat_id}')],
+    ])
+
+
+
+
 reject_to_admin_btn = InlineKeyboardButton(text='❌Відміна', callback_data='admin')
 back_to_admin_btn = InlineKeyboardButton(text='« Назад', callback_data='admin')
 back_to_group_manage_btn = InlineKeyboardButton(text="« Назад", callback_data="group_manage")

@@ -112,7 +112,7 @@ class Lot(Base):
 
 class Advertisement(Base):
     """
-    Модель ...
+    Модель .............
     """
     # TODO: Це для чого?
     __tablename__ = 'Advertisement'
@@ -502,20 +502,12 @@ async def update_chat_sql(chat_id, **kwargs):
     :param kwargs: Поля, які потрібно оновити (ключ-значення).
     """
     async with async_session() as session:
-        stmt = update(ChannelGroup).where(ChannelGroup.chat_id == chat_id).values(kwargs)
-        await session.execute(stmt)
-        await session.commit()
-        await session.close()
+        stmt = update(ChannelGroup).where(ChannelGroup.chat_id == chat_id).values(**kwargs)
+        try:
+            await session.execute(stmt)
+            await session.commit()
+        except Exception as e:
+            await session.rollback()
+            print(f"Error updating chat {chat_id}: {e}")
+            raise e
 
-
-async def get_group_by_chat_id(chat_id) -> ChannelGroup:
-    """
-    Отримує інформацію про групу за її ID.
-
-    :param chat_id: Унікальний ідентифікатор чату.
-    :return: Об'єкт ChannelGroup або None, якщо запис не знайдено.
-    """
-    async with async_session() as session:
-        stmt = select(ChannelGroup).where(ChannelGroup.chat_id == chat_id)
-        res = await session.execute(stmt)
-        return res.fetchone()[0]

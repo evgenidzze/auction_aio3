@@ -71,10 +71,10 @@ import functools
 from datetime import datetime
 from typing import Callable, List
 from aiogram.types import Message
-from database.db_manage import get_group_by_chat_id
+from database.db_manage import get_chat_record
 
 
-def subscription_required(subscription_types: List[str]):
+def subscription_group_required(*subscription_types: List[str]):
     """
     Декоратор для перевірки наявності необхідної підписки.
 
@@ -83,24 +83,24 @@ def subscription_required(subscription_types: List[str]):
     def decorator(func: Callable):
         @functools.wraps(func)
         async def wrapper(message: Message, *args, **kwargs):
-            chat = await get_group_by_chat_id(message.chat.id)  # Заміна на вашу функцію отримання групи
+            chat = await get_chat_record(message.chat.id)  # Заміна на вашу функцію отримання групи
 
             if "free_trial" in subscription_types:
                 if not chat.free_trial or datetime.utcnow().timestamp() > chat.free_trial:
                     # Пробна підписка для цієї групи закінчилася. Оформіть підписку, щоб продовжити.
-                    print("Пробна підписка для цієї групи закінчилася. Оформіть підписку, щоб продовжити.")
+                    print("Пробна підписка для цієї групи закінчилася. Оформіть підписку, щоб продовжити.") # TODO: delete
                     return
 
             if "auction" in subscription_types:
                 if not chat.auction_paid:
                     # Ця функція доступна лише для груп з активною підпискою на лоти.
-                    print("Ця функція доступна лише для груп з активною підпискою на лоти.")
+                    print("Ця функція доступна лише для груп з активною підпискою на лоти.") # TODO: delete
                     return
 
             if "ads" in subscription_types:
                 if not chat.ads_paid:
-                    # Ця функція доступна лише для груп з активною підпискою на інші функції.
-                    print("Ця функція доступна лише для груп з активною підпискою на інші функції.")
+                    # Ця функція доступна лише для груп з активною підпискою на оголошення.
+                    print("Ця функція доступна лише для груп з активною підпискою на інші функції.") # TODO: delete
                     return
 
             # Якщо перевірки успішні, виконуємо основну функцію
