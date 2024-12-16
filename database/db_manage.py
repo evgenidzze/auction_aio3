@@ -112,9 +112,22 @@ class Lot(Base):
 
 class Advertisement(Base):
     """
-    Модель .............
+    Модель оголошення.
+
+    Атрибути:
+        id (int): Унікальний ідентифікатор оголошення.
+        owner_telegram_id (str): Telegram ID власника оголошення.
+        description (str): Опис оголошення.
+        photo_id (str): ID фото оголошення.
+        video_id (str): ID відео оголошення.
+        approved (bool): Прапорець схвалення оголошення.
+        message_id (str): ID повідомлення оголошення.
+        city (str): Місто оголошення.
+        photos_link (str): Посилання на фото оголошення.
+        post_link (str): Посилання на пост оголошення.
+        new_text (str): Новий текст оголошення.
+        post_per_day (int): Кількість постів на день.
     """
-    # TODO: Це для чого?
     __tablename__ = 'Advertisement'
     id: Mapped[int] = mapped_column(primary_key=True, nullable=False, autoincrement=True, unique=True)
     owner_telegram_id: Mapped[str] = mapped_column(ForeignKey('User.telegram_id'), nullable=False)
@@ -150,10 +163,10 @@ class ChannelGroup(Base):
         auction_sub_time (int): Час підписки на аукціон.
         auction_paid (bool): Прапорець оплати аукціону.
         auction_token (str): Токен аукціону.
-        ads_sub_time (int): Час підписки на ...........
-        ads_paid (bool): Прапорець оплати на ..........
-        ads_token (str): Токен реклами.
-        free_trial (int): Час безкоштовної підписки.
+        ads_sub_time (int): Час підписки на оголошення.
+        ads_paid (bool): Прапорець оплати на оголошення.
+        ads_token (str): Токен оголошення.
+        free_trial (int): Час unix безкоштовної підписки.
     """
     __tablename__ = 'ChannelGroup'
     id: Mapped[int] = mapped_column(primary_key=True, nullable=False, autoincrement=True, unique=True)
@@ -195,22 +208,22 @@ async def create_group_channel(owner_telegram_id, chat_id, chat_type, chat_name,
     :param chat_name: Назва чату.
     :param chat_link: Посилання на чат (опціонально).
     """
-    async with async_session() as session:
-        new_chat = ChannelGroup
-        stmt = insert(new_chat).values(
+    async with async_session() as session:  # async_session має бути створений заздалегідь
+        stmt = insert(ChannelGroup).values(
             owner_telegram_id=owner_telegram_id,
             chat_id=chat_id,
             chat_type=chat_type,
             chat_name=chat_name,
             chat_link=chat_link
-        ).on_duplicate_key_update(
-            chat_id=chat_id,
-            chat_type=chat_type,
-            chat_name=chat_name,
-            chat_link=chat_link).prefix_with('IGNORE')
+        )
+        # Додаємо ON DUPLICATE KEY UPDATE
+        stmt = stmt.on_duplicate_key_update(
+            chat_type=stmt.inserted.chat_type,
+            chat_name=stmt.inserted.chat_name,
+            chat_link=stmt.inserted.chat_link
+        )
         await session.execute(stmt)
         await session.commit()
-        await session.close()
 
 
 async def insert_or_update_user(telegram_id, language):
@@ -230,7 +243,6 @@ async def insert_or_update_user(telegram_id, language):
         ).prefix_with('IGNORE')
         await session.execute(stmt)
         await session.commit()
-        await session.close()
 
 
 async def update_user_sql(telegram_id, **kwargs):
@@ -244,7 +256,6 @@ async def update_user_sql(telegram_id, **kwargs):
         stmt = update(User).where(User.telegram_id == telegram_id).values(kwargs)
         await session.execute(stmt)
         await session.commit()
-        await session.close()
 
 
 async def update_lot_sql(lot_id, **kwargs):
@@ -258,7 +269,6 @@ async def update_lot_sql(lot_id, **kwargs):
         stmt = update(Lot).where(Lot.id == lot_id).values(kwargs)
         await session.execute(stmt)
         await session.commit()
-        await session.close()
 
 
 async def update_adv_sql(adv_id, **kwargs):
@@ -272,7 +282,6 @@ async def update_adv_sql(adv_id, **kwargs):
         stmt = update(Advertisement).where(Advertisement.id == adv_id).values(kwargs)
         await session.execute(stmt)
         await session.commit()
-        await session.close()
 
 
 async def create_lot(fsm_data, owner_id):
@@ -301,7 +310,6 @@ async def create_lot(fsm_data, owner_id):
         session.add(new_lot)
         await session.commit()
         await session.refresh(new_lot)
-        await session.close()
         return str(new_lot.id)
 
 
@@ -326,7 +334,6 @@ async def create_adv(owner_id, fsm_data):
         session.add(new_adv)
         await session.commit()
         await session.refresh(new_adv)
-        await session.close()
         return str(new_adv.id)
 
 
@@ -400,7 +407,6 @@ async def make_bid_sql(lot_id, price, bidder_id, bid_count):
                                                           bid_count=bid_count + 1)
         await session.execute(stmt)
         await session.commit()
-        await session.close()
 
 
 async def get_last_bid(lot_id):
@@ -450,7 +456,6 @@ async def delete_record_by_id(rec_id, table: Type[Union[Lot, Advertisement]]):
         stmt = delete(table).where(table.id == rec_id)
         await session.execute(stmt)
         await session.commit()
-        await session.close()
 
 
 async def get_user_chats(user_id) -> List[ChannelGroup]:
