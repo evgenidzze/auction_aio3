@@ -59,6 +59,11 @@ api_domain = 'https://api-m.sandbox.paypal.com'
 
 
 async def create_order(usd):
+    """
+    Створення замовлення в PayPal на певну суму
+    :param usd: сума в доларах
+    :return: id замовлення
+    """
     url = f"{api_domain}/v2/checkout/orders"
     headers = {
         "Content-Type": "application/json",
@@ -152,5 +157,3 @@ async def user_is_partner(user_id):
     if user.merchant_id:
         return True
     return False
-
-

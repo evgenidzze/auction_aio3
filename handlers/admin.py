@@ -24,6 +24,7 @@ from utils.utils import get_token_approval, payment_completed, \
 
 # import apscheduler
 from utils.create_bot import scheduler
+from apscheduler.jobstores.base import JobLookupError
 
 
 class FSMAdmin(StatesGroup):
@@ -132,6 +133,7 @@ async def add_group(call: types.CallbackQuery):
 
 
 async def my_channels_groups(call: types.CallbackQuery, state: FSMContext):
+    """Після натискання на кнопку Мої групи/канали"""
     user_chats = await get_user_chats(call.from_user.id)
     kb = InlineKeyboardMarkup(
         inline_keyboard=[[InlineKeyboardButton(text=chat.chat_name, callback_data=chat.chat_id)] for chat in
@@ -144,41 +146,47 @@ async def my_channels_groups(call: types.CallbackQuery, state: FSMContext):
 
 
 async def user_chat_menu(call: types.CallbackQuery, state: FSMContext):
+    """Після натискання на кнопку Мої групи/канали та вибору групи/каналу"""
     await call.message.edit_text(text=_('Перевірка підписки...'))
+
     user_chat_id = call.data.split(':')[0]
     chat = await get_chat_record(user_chat_id)
-    adv_subscribe_time_remain, auction_subscribe_time_remain = chat.ads_sub_time, chat.auction_sub_time
-    text = ('Оголошення {ads_sub_date}\n'
-            'Аукціон {auction_sub_date}')
-    auction_token, ads_token = None, None
-    if auction_subscribe_time_remain > time.time():
-        auction_sub_date = f'активовано до {datetime.datetime.fromtimestamp(chat.auction_sub_time).strftime("%d.%m.%Y")}'
-    else:
-        auction_token_approved = await get_token_approval(chat, type_='auction')
-        if auction_token_approved:
-            auction_sub_date = f'активовано до {datetime.datetime.fromtimestamp(chat.auction_sub_time).strftime("%d.%m.%Y")}'
-            await update_chat_sql(user_chat_id, auction_sub_time=604800 + time.time())
-        else:
-            auction_sub_date = 'не активовано'
-            auction_token = await get_token_or_create_new(chat.auction_token, user_chat_id, 'auction_token')
-    if adv_subscribe_time_remain > time.time():
-        ads_sub_date = f'активовано до {datetime.datetime.fromtimestamp(chat.ads_sub_time).strftime("%d.%m.%Y")}'
-    else:
-        ads_token_approved = await get_token_approval(chat, type_='ads')
-        if ads_token_approved:
-            ads_sub_date = f'активовано до {datetime.datetime.fromtimestamp(chat.ads_sub_time).strftime("%d.%m.%Y")}'
-            await update_chat_sql(user_chat_id, ads_sub_time=604800 + time.time())
-        else:
-            ads_token = await get_token_or_create_new(chat.ads_token, user_chat_id, 'ads_token')
-            ads_sub_date = 'не активовано'
-    text = text.format(auction_sub_date=auction_sub_date, ads_sub_date=ads_sub_date)
 
-    kb = await activate_ad_auction_kb(auction_token=auction_token, ads_token=ads_token,
-                                      back_btn=back_my_channels_groups, user_chat_id=user_chat_id)
+    tokens = {'auction': None, 'ads': None}
+    sub_dates = {}
+    current_time = time.time()
+
+    for sub_type, sub_time_attr in [('auction', 'auction_sub_time'), ('ads', 'ads_sub_time')]:
+        sub_time = getattr(chat, sub_time_attr)
+        if sub_time > current_time:
+            sub_dates[sub_type] = f'активовано до {datetime.datetime.fromtimestamp(sub_time).strftime("%d.%m.%Y")}'
+        else:
+            token_approved = await get_token_approval(chat, type_=sub_type)
+            if token_approved:
+                sub_dates[sub_type] = f'активовано до {datetime.datetime.fromtimestamp(sub_time).strftime("%d.%m.%Y")}'
+                await update_chat_sql(user_chat_id, **{sub_time_attr: 604800 + current_time})
+            else:
+                tokens[sub_type] = await get_token_or_create_new(getattr(chat, f'{sub_type}_token'), user_chat_id, f'{sub_type}_token')
+                sub_dates[sub_type] = 'не активовано'
+
+    text = (
+        f'Оголошення {sub_dates["ads"]}\n'
+        f'Аукціон {sub_dates["auction"]}'
+    )
+
+    kb = await activate_ad_auction_kb(
+        auction_token=tokens['auction'],
+        ads_token=tokens['ads'],
+        back_btn=back_my_channels_groups,
+        user_chat_id=user_chat_id
+    )
+
     await bot.send_message(chat_id=call.from_user.id, text=text, reply_markup=kb)
 
 
+
 async def update_bot_subscription_status(call, state: FSMContext):
+    """Після натискання на кнопку Оновити статус"""
     token = call.data.split('_')[-1]
     user_chat_id = call.data.split(':')[0]
     payment = await payment_completed(token)
@@ -268,112 +276,93 @@ async def my_chat_member_handler(my_chat_member: types.ChatMemberUpdated):
         await bot.send_message(chat_id=user_id, text=messages[new_status])
 
 
-async def scheduled_job_subscribe_is_ending(owner_id: str, type_subscription: str):
-    """Повідомлення за добу до закінчення підписки."""
-    message = {
-        'ads': _('Ваша підписка на оголошення добігає кінця. Поповніть підписку.'),
-        'auction': _('Ваша підписка на аукціон добігає кінця. Поповніть підписку.'),
-        'free_trial': _('Ваш пробний період добігає кінця. Поповніть підписку.'),
-        'universal': _('Ваша універсальна підписка добігає кінця. Поповніть підписку.'),
-    }[type_subscription]
+class SubscriptionGroupHandler:
+    def __init__(self):
+        pass
 
-    await bot.send_message(chat_id=owner_id, text=message)
+    @staticmethod
+    async def scheduled_job_subscribe_is_ending(owner_id: str, type_subscription: str):
+        """Повідомлення за добу до закінчення підписки."""
+        message = {
+            'ads': _('Ваша підписка на оголошення добігає кінця. Поповніть підписку.'),
+            'auction': _('Ваша підписка на аукціон добігає кінця. Поповніть підписку.'),
+            'free_trial': _('Ваш пробний період добігає кінця. Поповніть підписку.'),
+            'universal': _('Ваша універсальна підписка добігає кінця. Поповніть підписку.'),
+        }[type_subscription]
 
+        await bot.send_message(chat_id=owner_id, text=message)
 
-def create_subscribe_is_ending(owner_chat_id: str, group_chat_id: str, type_subscription: str, duration_days: int):
-    """Створення задачі на попередження про закінчення підписки."""
-    current_time = time.time()
-    scheduler.add_job(
-        scheduled_job_subscribe_is_ending,
-        'date',
-        run_date=datetime.datetime.fromtimestamp(current_time + duration_days * 86400 - 86400),
-        args=[owner_chat_id, type_subscription],
-        id=f'subscribe:{group_chat_id}'
-    )
+    @staticmethod
+    def create_task_subscribe_is_ending(owner_chat_id: str, group_chat_id: str, type_subscription: str, duration_days: int):
+        """Створення задачі на попередження про закінчення підписки."""
+        try:
+            scheduler.remove_job(f'subscribe:{group_chat_id}')
+        except JobLookupError:
+            pass
 
-def remove_subscribe_is_ending(group_chat_id: str):
-    """Видалення задачі на попередження про закінчення підписки."""
-    scheduler.remove_job(f'subscribe:{group_chat_id}')
-
-
-async def handle_subscription_group(callback_query: types.CallbackQuery):
-    """
-    Обробка кнопок підписки на групу.
-    """
-    owner_chat_id = callback_query.from_user.id
-
-    current_time = time.time()
-
-    group_chat_id = callback_query.data.split('_')[-1]
-    duration_days = int(callback_query.data.split('_')[-2])
-    type_subscribe = callback_query.data.split('_')[-3]  # trial, auction, ads, universal
-
-    # Чи є активна підписка
-    chat_data = await get_chat_record(group_chat_id)
-    is_active_free_trial = datetime.datetime.fromtimestamp(chat_data.free_trial) > datetime.datetime.now()
-    if is_active_free_trial or chat_data.auction_paid or chat_data.ads_paid:
-        await callback_query.message.edit_text(
-            text=_("Наразі у вас діє активна підписка типу *{subscribe}* до *{last_time_subscribe}*").format(
-                subscribe=_('Пробний період') if is_active_free_trial else _('Універсальна') if chat_data.auction_paid and chat_data.ads_paid else _('Аукціон') if chat_data.auction_paid else _('Оголошення'),
-                last_time_subscribe=datetime.datetime.fromtimestamp(
-                    chat_data.free_trial if chat_data.free_trial else chat_data.auction_sub_time if chat_data.auction_paid else chat_data.ads_sub_time
-                ).strftime("%d.%m.%Y" if chat_data.free_trial else "%d.%m.%Y"),
-            ),
+        current_time = time.time()
+        scheduler.add_job(
+            SubscriptionGroupHandler.scheduled_job_subscribe_is_ending,
+            'date',
+            run_date=datetime.datetime.fromtimestamp(current_time + duration_days * 86400 - 86400),
+            args=[owner_chat_id, type_subscription],
+            id=f'subscribe:{group_chat_id}'
         )
-        return None
-    
 
-    if type_subscribe == 'trial':
+    @staticmethod
+    async def payment_process(owner_chat_id: str, group_chat_id: str, type_subscription: str, duration_days: int):
+        """Створення платіжного процесу."""
+        # TODO: Логіка оплати. Логування і тд.
+        pass
+
+    async def listening(self, callback_query: types.CallbackQuery):
+        """
+        Обробка кнопок підписки на групу.
+        """
+        owner_chat_id = callback_query.from_user.id
+        group_chat_id = callback_query.data.split('_')[-1]
+        duration_days = int(callback_query.data.split('_')[-2])
+        type_subscribe = callback_query.data.split('_')[-3]  # trial, auction, ads, universal
+
+        current_time = time.time()
         chat_data = await get_chat_record(group_chat_id)
-        if chat_data.free_trial > 0:
+        ads_update_duration = max(chat_data.ads_sub_time, current_time) + duration_days * 86400
+        auction_update_duration = max(chat_data.auction_sub_time, current_time) + duration_days * 86400
+
+        if type_subscribe == 'trial':
+            if chat_data.free_trial > 0:
+                await callback_query.message.edit_text(
+                    text=_("Пробний період вже було використано."),
+                    reply_markup=admin_menu_kb.as_markup()
+                )
+                return None
+
+            self.create_task_subscribe_is_ending(owner_chat_id, group_chat_id, 'free_trial', duration_days)
+            await update_chat_sql(group_chat_id, free_trial=current_time + duration_days * 86400)
             await callback_query.message.edit_text(
-                text=_("Пробний період вже було використано."),
+                text=_("Пробний період активовано на {days} днів.").format(days=duration_days),
                 reply_markup=admin_menu_kb.as_markup()
             )
-            return None
-        remove_subscribe_is_ending(group_chat_id)
-        create_subscribe_is_ending(owner_chat_id, group_chat_id, 'free_trial', duration_days)
-        await update_chat_sql(group_chat_id, free_trial=duration_days * 86400 + current_time)
-        await callback_query.message.edit_text(
-            text=_("Пробний період активовано на {days} днів.").format(days=duration_days),
-            reply_markup=admin_menu_kb.as_markup()
-        )
 
-    elif type_subscribe == 'auction':
-        # TODO: Додаткова перевірка на наявність підписки та логіка оплати. А також логування операцій.
-        remove_subscribe_is_ending(group_chat_id)
-        create_subscribe_is_ending(owner_chat_id, group_chat_id, 'auction', duration_days)
-        await update_chat_sql(group_chat_id, auction_sub_time=duration_days * 86400 + current_time, auction_paid=True)
-        await callback_query.message.edit_text(
-            text=_("Підписка на аукціон активована на {days} днів.").format(days=duration_days),
-            reply_markup=admin_menu_kb.as_markup()
-        )
+        elif type_subscribe == 'auction':
+            if await self.payment_process(owner_chat_id, group_chat_id, 'auction', duration_days):
+                return None
+            self.create_task_subscribe_is_ending(owner_chat_id, group_chat_id, 'auction', duration_days)
+            await update_chat_sql(group_chat_id, auction_sub_time=auction_update_duration, auction_paid=True)
+            await callback_query.message.edit_text(
+                text=_("Підписка на аукціон активована на {days} днів.").format(days=duration_days),
+                reply_markup=admin_menu_kb.as_markup()
+            )
 
-    elif type_subscribe == 'ads':
-        # TODO: Додаткова перевірка на наявність підписки та логіка оплати. А також логування операцій.
-        remove_subscribe_is_ending(group_chat_id)
-        create_subscribe_is_ending(owner_chat_id, group_chat_id, 'ads', duration_days)
-        await update_chat_sql(group_chat_id, ads_sub_time=duration_days * 86400 + current_time, ads_paid=True)
-        await callback_query.message.edit_text(
-            text=_("Підписка на оголошення активована на {days} днів.").format(days=duration_days),
-            reply_markup=admin_menu_kb.as_markup()
-        )
-
-    elif type_subscribe == 'universal':
-        # TODO: Додаткова перевірка на наявність підписки та логіка оплати. А також логування операцій.
-        remove_subscribe_is_ending(group_chat_id)
-        create_subscribe_is_ending(owner_chat_id, group_chat_id, 'universal', duration_days)
-        await update_chat_sql(
-            group_chat_id,
-            auction_sub_time=duration_days * 86400 + current_time,
-            ads_sub_time=duration_days * 86400 + current_time,
-            ads_paid=True,
-            auction_paid=True
-        )
-        await callback_query.message.edit_text(
-            text=_("Універсальна підписка активована на {days} днів.").format(days=duration_days),
-            reply_markup=admin_menu_kb.as_markup()
-        )
+        elif type_subscribe == 'ads':
+            if await self.payment_process(owner_chat_id, group_chat_id, 'ads', duration_days):
+                return None
+            self.create_task_subscribe_is_ending(owner_chat_id, group_chat_id, 'ads', duration_days)
+            await update_chat_sql(group_chat_id, ads_sub_time=ads_update_duration, ads_paid=True)
+            await callback_query.message.edit_text(
+                text=_("Підписка на оголошення активована на {days} днів.").format(days=duration_days),
+                reply_markup=admin_menu_kb.as_markup()
+            )
 
 
 async def not_registered_partner(message: types.Message):
@@ -412,7 +401,7 @@ def register_admin_handlers(r: Router):
     r.callback_query.register(my_channels_groups, F.data == 'my_channels_groups')  # Пункт меню "Мої групи/канали"
     r.callback_query.register(deny_user_access, F.data == 'deny_user_access')  # Чорний список
     r.callback_query.register(payment_tumbler, F.data.endswith('_payment'))  # Вимкнути/Увімкнути оплату
-    r.callback_query.register(handle_subscription_group, F.data.startswith("subscription_group"))  # Підписка на групу
+    r.callback_query.register(SubscriptionGroupHandler().listening, F.data.startswith("subscription_group"))  # Підписка на групу
     r.callback_query.register(add_group, F.data == 'add_group')  # Пункт меню "Підключити групу"
     r.callback_query.register(monetization, F.data == 'monetization')  # Монетизація
     r.callback_query.register(group_id_settings, FSMAdmin.group_id_settings)  # Налаштування групи
