@@ -34,14 +34,13 @@ class FSMAdmin(StatesGroup):
 
 
 async def admin(message: types.Message, state):
-    if message.chat.type != 'private':
-        return None
-
     await state.clear()
     if isinstance(message, types.Message):
-        await message.answer(text='Меню адміністратора', reply_markup=admin_menu_kb.as_markup())
+        if message.chat.type == 'private':
+            await message.answer(text='Меню адміністратора', reply_markup=admin_menu_kb.as_markup())
     elif isinstance(message, types.CallbackQuery):
-        await message.message.edit_text(text='Меню адміністратора', reply_markup=admin_menu_kb.as_markup())
+        if message.message.chat.type == 'private':
+            await message.message.edit_text(text='Меню адміністратора', reply_markup=admin_menu_kb.as_markup())
 
 
 async def deny_user_access(call: types.CallbackQuery, state: FSMContext):
