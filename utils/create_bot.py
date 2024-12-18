@@ -1,13 +1,10 @@
 import asyncio
-import time
 from pathlib import Path
-import aioredis
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.utils.i18n import I18n, I18nMiddleware
 from apscheduler.jobstores.redis import RedisJobStore
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler_di import ContextSchedulerDecorator
 from redis.asyncio import Redis
 
 
