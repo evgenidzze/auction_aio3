@@ -16,7 +16,7 @@ from database.db_manage import get_user, update_user_sql, get_user_chats, get_ch
     create_group_channel
 from keyboards.admin_kb import reject_to_admin_btn, back_to_admin_btn, back_to_group_manage_btn, \
     unblock_user_btn, block_user_btn, back_my_channels_groups, back_my_channels_groups_kb, \
-    activate_ad_auction_kb, admin_menu_kb, create_subscription_group_buttons_kb
+    activate_ad_auction_kb, admin_menu_kb, create_subscription_group_buttons_kb, add_group_kb
 from keyboards.client_kb import main_kb, group_channels_btn
 from utils.paypal import create_order, create_partner_referral_url_and_token, user_is_partner
 from utils.utils import get_token_approval, payment_completed, \
@@ -137,7 +137,7 @@ async def my_channels_groups(call: types.CallbackQuery, state: FSMContext):
     kb = InlineKeyboardMarkup(
         inline_keyboard=[[InlineKeyboardButton(text=chat.chat_name, callback_data=chat.chat_id)] for chat in
                          user_chats])
-    kb.inline_keyboard.extend([[back_to_admin_btn]])
+    kb.inline_keyboard.extend([[add_group_kb], [back_to_admin_btn]])
     await state.set_state(FSMAdmin.user_chat_id)
     await call.message.edit_text(text=_('Ваші групи/канали.\n'
                                         'Щоб активувати або перевірити статус бота, оберіть потрібну групу/канал:'),
