@@ -43,7 +43,7 @@ services:
       - app-tier
   subscription_checker:
     build: .
-    command: python subscription_checker.py
+    command: python3 services/subscription_checker.py
     restart: always
     depends_on:
       - db
