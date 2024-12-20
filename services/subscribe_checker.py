@@ -1,22 +1,19 @@
 """
 Сервіс для перевірки закінчення підписок на групи.
 """
+import logging
 
 # TODO: Можна як сервіс, а можна включити в основний файл бота або через subprocess або ще варіанти.
 #  Якщо саме так залишити то в докер контейнери включити запуск.
 
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.ext.asyncio import async_sessionmaker
 from sqlalchemy.future import select
-from sqlalchemy.orm import aliased
 from datetime import datetime
-from sqlalchemy import update
 from utils.config import BOT_TOKEN
 from database.db_manage import ChannelGroup, engine
-
 from keyboards.admin_kb import create_subscription_group_buttons_kb
-
-from aiogram import Bot, types
+from aiogram import Bot
 from aiogram.utils.i18n import I18n
 from pathlib import Path
 
@@ -97,22 +94,22 @@ async def main():
     """
     Основний цикл перевірки груп і оновлення флажків.
     """
-    async with async_sessionmaker(engine, class_=AsyncSession)() as session:
-        while True:
-            try:
-                # Обробляємо групи
+    while True:
+        try:
+            # Створюємо нову сесію на кожну ітерацію
+            async with async_sessionmaker(engine, class_=AsyncSession)() as session:
                 expired_groups = await process_expired_flags(session)
 
                 # Чекаємо перед наступною перевіркою
                 if not expired_groups:
-                    print("No expired groups found. Sleeping...")
-                await asyncio.sleep(CHECK_INTERVAL_SECONDS)
-            except Exception as e:
-                print(f"Error during processing: {e}")
-                await asyncio.sleep(CHECK_INTERVAL_SECONDS)
+                    logging.info("No expired groups found. Sleeping...")
+        except Exception as e:
+            logging.exception(f"Error during processing: {e}")
+        finally:
+            # Завжди чекаємо перед наступною ітерацією
+            await asyncio.sleep(CHECK_INTERVAL_SECONDS)
 
 
 if __name__ == "__main__":
     import asyncio
-
     asyncio.run(main())

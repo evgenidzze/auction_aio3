@@ -39,8 +39,16 @@ services:
     ports:
       - "8080:8000"
     depends_on:
-      - redis
+      - bot
     networks:
       - app-tier
+  subscription_checker:
+    build: .
+    command: python subscription_checker.py
+    restart: always
+    depends_on:
+      - db
+    volumes:
+      - .:/app
 volumes:
   my-db:
