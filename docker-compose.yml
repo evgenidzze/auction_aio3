@@ -22,7 +22,7 @@ services:
       - ./database/init.sql:/data/application/init.sql
   bot:
     build: .
-    command: bash -c "alembic revision --autogenerate && alembic upgrade head && python start_bot.py"
+    command: bash -c "alembic upgrade head && alembic revision --autogenerate && alembic upgrade head && python start_bot.py"
     env_file:
       - ./.env
     restart: always
