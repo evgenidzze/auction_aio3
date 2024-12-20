@@ -17,7 +17,6 @@ async def paypal_webhook(request: Request):
     payload = await request.json()
     event_type = payload.get("event_type")
     resource = payload.get("resource", {})
-    logging.info(payload)
     if event_type == "MERCHANT.ONBOARDING.COMPLETED":
         merchant_id = resource.get("merchant_id")
         email = resource.get("email")
@@ -35,7 +34,10 @@ async def get_tracking_id_paypal(resource):
     links = resource.get('links')
     href = links[0].get('href')
     async with aiohttp.ClientSession() as session:
-        async with session.get(href, auth=BasicAuth(PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET)) as response:
-            data = await response.json()
-            tracking_id = data.get('tracking_id')
-            return tracking_id
+        try:
+            async with session.get(href, auth=BasicAuth(PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET)) as response:
+                data = await response.json()
+                tracking_id = data.get('tracking_id')
+                return tracking_id
+        except Exception as err:
+            logging.info(err)

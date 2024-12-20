@@ -1,4 +1,3 @@
-import asyncio
 import datetime
 import time
 
@@ -15,14 +14,13 @@ from utils.create_bot import job_stores, bot, _
 from database.db_manage import get_user, update_user_sql, get_user_chats, get_chat_record, update_chat_sql, \
     create_group_channel
 from keyboards.admin_kb import reject_to_admin_btn, back_to_admin_btn, back_to_group_manage_btn, \
-    unblock_user_btn, block_user_btn, back_my_channels_groups, back_my_channels_groups_kb, \
+    unblock_user_btn, block_user_btn, back_my_channels_groups, \
     activate_ad_auction_kb, admin_menu_kb, create_subscription_group_buttons_kb, add_group_kb
-from keyboards.client_kb import main_kb, group_channels_btn
-from utils.paypal import create_order, create_partner_referral_url_and_token, user_is_partner
+from keyboards.client_kb import main_kb
+from utils.paypal import create_partner_referral_url_and_token, user_is_partner
 from utils.utils import get_token_approval, payment_completed, \
     get_token_or_create_new
 
-# import apscheduler
 from utils.create_bot import scheduler
 from apscheduler.jobstores.base import JobLookupError
 
