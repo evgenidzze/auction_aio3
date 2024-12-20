@@ -50,5 +50,7 @@ services:
       - db
     volumes:
       - .:/app
+    networks:
+      - app-tier
 volumes:
   my-db:
