@@ -6,18 +6,16 @@ import logging
 # TODO: Можна як сервіс, а можна включити в основний файл бота або через subprocess або ще варіанти.
 #  Якщо саме так залишити то в докер контейнери включити запуск.
 
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.ext.asyncio import async_sessionmaker
 from sqlalchemy.future import select
-from sqlalchemy.orm import aliased
-from datetime import datetime
-from sqlalchemy import update
-from utils.config import BOT_TOKEN
+import datetime
+from utils.config import BOT_TOKEN, DEV_ID
 from database.db_manage import ChannelGroup, engine
 
 from keyboards.admin_kb import create_subscription_group_buttons_kb
 
-from aiogram import Bot, types
+from aiogram import Bot
 from aiogram.utils.i18n import I18n
 from pathlib import Path
 
@@ -27,6 +25,7 @@ _ = I18n(path=Path(__file__).parent.parent / 'locales', domain='auction').gettex
 # --- Конфігурація ---
 BATCH_SIZE = 500  # Розмір батчу
 CHECK_INTERVAL_SECONDS = 300  # Інтервал перевірки (секунди)
+async_session = async_sessionmaker(engine)
 
 # Ініціалізуємо бота
 bot = Bot(token=BOT_TOKEN, validate_token=False)
@@ -59,7 +58,7 @@ async def process_expired_flags(session: AsyncSession):
     Проходить по групах, у яких закінчився час `auction_time` або `ads_time`,
     оновлює відповідні флажки та повертає список груп для подальшого використання.
     """
-    current_timestamp = datetime.utcnow().timestamp()
+    current_timestamp = datetime.datetime.now(datetime.UTC).timestamp()
 
     # Вибираємо групи, у яких закінчився auction_time або ads_time
     query = (
@@ -74,7 +73,6 @@ async def process_expired_flags(session: AsyncSession):
     # Отримуємо групи батчами
     result = await session.execute(query)
     groups = result.scalars().all()
-
     # Якщо немає груп, виходимо
     if not groups:
         return []
@@ -102,18 +100,17 @@ async def main():
     error_count = 0
     while True:
         try:
-            async with async_sessionmaker(engine, class_=AsyncSession)() as session:
-                # Обробляємо групи
+            async with async_session() as session:
                 expired_groups = await process_expired_flags(session)
 
                 # Чекаємо перед наступною перевіркою
                 if not expired_groups:
-                    logging.log("No expired groups found. Sleeping...")
+                    logging.info("No expired groups found. Sleeping...")
                 await asyncio.sleep(CHECK_INTERVAL_SECONDS)
                 error_count = 0
         except Exception as err:
             if error_count == 10:
-                await bot.send_message(chat_id=DEV_ID, text='Проблема з підключенням до БД:\n {err}')
+                await bot.send_message(chat_id=DEV_ID, text=f'Проблема з підключенням до БД:\n {err}')
             logging.exception(f"Error during processing: {err}")
             await asyncio.sleep(retry_delay)
             error_count += 1

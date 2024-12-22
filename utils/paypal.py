@@ -5,7 +5,7 @@ import aiohttp
 from aiohttp import BasicAuth
 
 from database.db_manage import get_user
-from utils.config import PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET, PARTNER_ID
+from utils.config import PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET, PARTNER_ID, OWNER_PARTNER_ID
 from utils.create_bot import job_stores
 
 api_domain = 'https://api-m.sandbox.paypal.com'
@@ -152,8 +152,20 @@ async def create_partner_referral_url_and_token(user_id) -> dict:
             return {'url': signup_url, 'partner_referral_token': partner_referral_token}
 
 
-async def user_is_partner(user_id):
-    user = await get_user(user_id)
-    if user.merchant_id:
-        return True
-    return False
+async def user_is_merchant_api(user_id):
+    async with aiohttp.ClientSession() as session:
+        async with session.get(
+                f"{api_domain}/v1/customer/partners/{OWNER_PARTNER_ID}/merchant-integrations?tracking_id={user_id}",
+                auth=BasicAuth(PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET)) as by_user_id_response:
+            by_user_id_response = await by_user_id_response.json()
+            links = by_user_id_response.get('links')
+            if links:
+                return True
+                # status_by_merchant_id_api_route = links[0].get('href')
+                # async with session.get(api_domain + status_by_merchant_id_api_route,
+                #                        auth=BasicAuth(PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET)) as by_merchant_id_response:
+                #     by_merchant_id_response = await by_merchant_id_response.json()
+                #     for key, val in by_merchant_id_response.items():
+                #         print(key, val)
+            else:
+                return False

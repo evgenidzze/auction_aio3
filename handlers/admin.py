@@ -17,7 +17,7 @@ from keyboards.admin_kb import reject_to_admin_btn, back_to_admin_btn, back_to_g
     unblock_user_btn, block_user_btn, back_my_channels_groups, \
     activate_ad_auction_kb, admin_menu_kb, create_subscription_group_buttons_kb, add_group_kb
 from keyboards.client_kb import main_kb
-from utils.paypal import create_partner_referral_url_and_token, user_is_partner
+from utils.paypal import create_partner_referral_url_and_token, user_is_merchant_api
 from utils.utils import get_token_approval, payment_completed, \
     get_token_or_create_new
 
@@ -163,7 +163,8 @@ async def user_chat_menu(call: types.CallbackQuery, state: FSMContext):
                 sub_dates[sub_type] = f'активовано до {datetime.datetime.fromtimestamp(sub_time).strftime("%d.%m.%Y")}'
                 await update_chat_sql(user_chat_id, **{sub_time_attr: 604800 + current_time})
             else:
-                tokens[sub_type] = await get_token_or_create_new(getattr(chat, f'{sub_type}_token'), user_chat_id, f'{sub_type}_token')
+                tokens[sub_type] = await get_token_or_create_new(getattr(chat, f'{sub_type}_token'), user_chat_id,
+                                                                 f'{sub_type}_token')
                 sub_dates[sub_type] = 'не активовано'
 
     text = (
@@ -179,7 +180,6 @@ async def user_chat_menu(call: types.CallbackQuery, state: FSMContext):
     )
 
     await bot.send_message(chat_id=call.from_user.id, text=text, reply_markup=kb)
-
 
 
 async def update_bot_subscription_status(call, state: FSMContext):
@@ -248,22 +248,25 @@ async def my_chat_member_handler(my_chat_member: types.ChatMemberUpdated):
         )
 
         if last_time_subscribe_timestamp < time.time():
-            await bot.send_message( # Повідомлення про відсутність активної підписки
+            await bot.send_message(  # Повідомлення про відсутність активної підписки
                 chat_id=user_id,
-                text=_("Ви не маєте активних підписок. Оформіть підписку для групи, щоб отримати доступ до потрібних функцій."),
+                text=_(
+                    "Ви не маєте активних підписок. Оформіть підписку для групи, щоб отримати доступ до потрібних функцій."),
                 reply_markup=create_subscription_group_buttons_kb(chat.chat_id, is_trial=chat.free_trial == 0)
             )
             return None
         else:
-            await bot.send_message( # Повідомлення про активну підписку
+            await bot.send_message(  # Повідомлення про активну підписку
                 chat_id=user_id,
-                text=_("Зараз у вас активна підписка типу *{subscribe}* до *{last_time_subscribe}*").format( # Пробна, аукціон, оголошення
+                text=_("Зараз у вас активна підписка типу *{subscribe}* до *{last_time_subscribe}*").format(
+                    # Пробна, аукціон, оголошення
                     subscribe=(
                         _('Пробний період') if is_active_free_trial else
                         _('Універсальна') if chat.auction_paid and chat.ads_paid else
                         _('Аукціон') if chat.auction_paid else _('Оголошення')
                     ),
-                    last_time_subscribe=datetime.datetime.fromtimestamp(last_time_subscribe_timestamp).strftime("%d.%m.%Y"),
+                    last_time_subscribe=datetime.datetime.fromtimestamp(last_time_subscribe_timestamp).strftime(
+                        "%d.%m.%Y"),
                 ),
                 reply_markup=admin_menu_kb.as_markup()
             )
@@ -290,7 +293,8 @@ class SubscriptionGroupHandler:
         await bot.send_message(chat_id=owner_id, text=message)
 
     @staticmethod
-    def create_task_subscribe_is_ending(owner_chat_id: str, group_chat_id: str, type_subscription: str, duration_days: int):
+    def create_task_subscribe_is_ending(owner_chat_id: str, group_chat_id: str, type_subscription: str,
+                                        duration_days: int):
         """Створення задачі на попередження про закінчення підписки."""
         try:
             scheduler.remove_job(f'subscribe:{group_chat_id}')
@@ -371,7 +375,7 @@ async def not_registered_partner(message: types.Message):
 
 
 async def monetization(call: types.CallbackQuery):
-    is_partner = await user_is_partner(call.from_user.id)
+    is_partner = await user_is_merchant_api(call.from_user.id)
     if is_partner:
         await call.message.edit_text(text='Вітаю, ви партнер!',
                                      reply_markup=InlineKeyboardMarkup(inline_keyboard=[[back_to_admin_btn]]))
@@ -379,15 +383,15 @@ async def monetization(call: types.CallbackQuery):
         referral_data = await create_partner_referral_url_and_token(call.from_user.id)
         # referral_data = await create_partner_referral_url_and_token('12312312')
         reg_url = referral_data.get('url')
-        builder = InlineKeyboardBuilder()
-        builder.button(text='Активувати PayPal', url=reg_url)
-        builder.add(back_to_admin_btn)
-        builder.adjust(1)
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text='Активувати PayPal', url=reg_url)],
+            [back_to_admin_btn]
+        ])
         await call.message.edit_text(
             text="Щоб стати партнером зареєструйтесь в PayPal по посиланню або під'єднайте існуючий аккаунт.\n"
                  "Після активації ви отримаєте повідомлення.\n"
                  "<b><a href='{reg_url}'>Активувати PayPal</a></b>".format(reg_url=reg_url),
-            reply_markup=builder.as_markup())
+            reply_markup=kb)
 
 
 def register_admin_handlers(r: Router):
@@ -398,7 +402,8 @@ def register_admin_handlers(r: Router):
     r.callback_query.register(my_channels_groups, F.data == 'my_channels_groups')  # Пункт меню "Мої групи/канали"
     r.callback_query.register(deny_user_access, F.data == 'deny_user_access')  # Чорний список
     r.callback_query.register(payment_tumbler, F.data.endswith('_payment'))  # Вимкнути/Увімкнути оплату
-    r.callback_query.register(SubscriptionGroupHandler().listening, F.data.startswith("subscription_group"))  # Підписка на групу
+    r.callback_query.register(SubscriptionGroupHandler().listening,
+                              F.data.startswith("subscription_group"))  # Підписка на групу
     r.callback_query.register(add_group, F.data == 'add_group')  # Пункт меню "Підключити групу"
     r.callback_query.register(monetization, F.data == 'monetization')  # Монетизація
     r.callback_query.register(group_id_settings, FSMAdmin.group_id_settings)  # Налаштування групи
