@@ -1,4 +1,4 @@
-FROM python:3.10.12-slim
+FROM python:3.12.3
 
 # Install required packages including locales and tzdata
 RUN apt-get update && \
