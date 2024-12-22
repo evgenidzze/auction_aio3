@@ -1,6 +1,7 @@
 """
 Сервіс для перевірки закінчення підписок на групи.
 """
+import logging
 
 # TODO: Можна як сервіс, а можна включити в основний файл бота або через subprocess або ще варіанти.
 #  Якщо саме так залишити то в докер контейнери включити запуск.
@@ -22,7 +23,6 @@ from pathlib import Path
 
 # Ініціалізуємо локалізацію
 _ = I18n(path=Path(__file__).parent.parent / 'locales', domain='auction').gettext
-
 
 # --- Конфігурація ---
 BATCH_SIZE = 500  # Розмір батчу
@@ -48,7 +48,8 @@ async def send_end_subscription_message(owner_id: str, chat_id: str, group_title
     }[type_subscription]
 
     # to owner
-    await bot.send_message(owner_id, f"{message[0]} '{group_title}'", reply_markup=create_subscription_group_buttons_kb(chat_id))
+    await bot.send_message(owner_id, f"{message[0]} '{group_title}'",
+                           reply_markup=create_subscription_group_buttons_kb(chat_id))
     # to groups
     await bot.send_message(chat_id, message[1])
 
@@ -97,20 +98,25 @@ async def main():
     """
     Основний цикл перевірки груп і оновлення флажків.
     """
-    async with async_sessionmaker(engine, class_=AsyncSession)() as session:
-        while True:
-            try:
+    retry_delay = 10
+    error_count = 0
+    while True:
+        try:
+            async with async_sessionmaker(engine, class_=AsyncSession)() as session:
                 # Обробляємо групи
                 expired_groups = await process_expired_flags(session)
 
                 # Чекаємо перед наступною перевіркою
                 if not expired_groups:
-                    print("No expired groups found. Sleeping...")
+                    logging.log("No expired groups found. Sleeping...")
                 await asyncio.sleep(CHECK_INTERVAL_SECONDS)
-            except Exception as e:
-                print(f"Error during processing: {e}")
-                await asyncio.sleep(CHECK_INTERVAL_SECONDS)
-
+                error_count = 0
+        except Exception as err:
+            if error_count == 10:
+                await bot.send_message(chat_id=DEV_ID, text='Проблема з підключенням до БД:\n {err}')
+            logging.exception(f"Error during processing: {err}")
+            await asyncio.sleep(retry_delay)
+            error_count += 1
 
 if __name__ == "__main__":
     import asyncio
