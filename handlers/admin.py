@@ -18,7 +18,7 @@ from keyboards.admin_kb import reject_to_admin_btn, back_to_admin_btn, back_to_g
     unblock_user_btn, block_user_btn, back_my_channels_groups, \
     activate_ad_auction_kb, admin_menu_kb, create_subscription_group_buttons_kb, add_group_kb
 from keyboards.client_kb import main_kb
-from utils.paypal import create_partner_referral_url_and_token, user_is_partner
+from utils.paypal import create_partner_referral_url_and_token, user_is_merchant_api
 from utils.utils import get_token_approval, payment_completed, \
     get_token_or_create_new
 
@@ -379,7 +379,7 @@ async def not_registered_partner(message: types.Message):
 
 
 async def monetization(call: types.CallbackQuery):
-    is_partner = await user_is_partner(call.from_user.id)
+    is_partner = await user_is_merchant_api(call.from_user.id)
     if is_partner:
         await call.message.edit_text(text='Вітаю, ви партнер!',
                                      reply_markup=InlineKeyboardMarkup(inline_keyboard=[[back_to_admin_btn]]))
@@ -387,15 +387,15 @@ async def monetization(call: types.CallbackQuery):
         referral_data = await create_partner_referral_url_and_token(call.from_user.id)
         # referral_data = await create_partner_referral_url_and_token('12312312')
         reg_url = referral_data.get('url')
-        builder = InlineKeyboardBuilder()
-        builder.button(text='Активувати PayPal', url=reg_url)
-        builder.add(back_to_admin_btn)
-        builder.adjust(1)
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text='Активувати PayPal', url=reg_url)],
+            [back_to_admin_btn]
+        ])
         await call.message.edit_text(
             text="Щоб стати партнером зареєструйтесь в PayPal по посиланню або під'єднайте існуючий аккаунт.\n"
                  "Після активації ви отримаєте повідомлення.\n"
                  "<b><a href='{reg_url}'>Активувати PayPal</a></b>".format(reg_url=reg_url),
-            reply_markup=builder.as_markup())
+            reply_markup=kb)
 
 
 def register_admin_handlers(r: Router):

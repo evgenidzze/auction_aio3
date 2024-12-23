@@ -8,47 +8,58 @@ services:
     volumes:
       - ./redis.conf:/usr/local/etc/redis/redis.conf
     env_file:
-      - .env
-    command: redis-server /usr/local/etc/redis/redis.conf --requirepass ${REDIS_PASS}
+      - env/.docker.env
+    command: redis-server /usr/local/etc/redis/redis.conf
+    networks:
+      - app-tier
   db:
     image: mysql:8.0.36
-    container_name: mysql-8.0.36
+    container_name: db
     command: --init-file /data/application/init.sql
     restart: always
     env_file:
-      - ./.env
+      - env/.docker.env
     volumes:
       - my-db:/var/lib/mysql
       - ./database/init.sql:/data/application/init.sql
+    networks:
+      - app-tier
   bot:
     build: .
+    container_name: bot
     command: bash -c "alembic upgrade head && alembic revision --autogenerate && alembic upgrade head && python start_bot.py"
     env_file:
-      - ./.env
+      - env/.docker.env
     restart: always
     depends_on:
       - db
       - redis
     volumes:
       - .:/app
+    networks:
+      - app-tier
   webhook:
     build:
       context: .
       dockerfile: Dockerfile.webhook
+    container_name: webhook
+    env_file:
+      - env/.docker.env
     ports:
       - "8080:8000"
     depends_on:
       - bot
     networks:
       - app-tier
-  subscription_checker:
-    build: .
-    command: python3 services/subscription_checker.py
-    restart: always
+  subscribe_checker:
+    build:
+      context: .
+    container_name: subscribe_checker
+    command: bash -c "PYTHONPATH=/app python3 services/subscribe_checker.py"
+    env_file:
+      - env/.docker.env
     depends_on:
-      - db
-    volumes:
-      - .:/app
+      - bot
     networks:
       - app-tier
 volumes:

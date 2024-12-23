@@ -4,8 +4,8 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 load_dotenv()
-DB_PASS = os.environ.get('DB_PASS')
-DB_NAME = os.environ.get('DB_NAME')
+DB_PASS = os.environ.get('MYSQL_ROOT_PASSWORD')
+DB_NAME = os.environ.get('MYSQL_DATABASE')
 DB_USER = os.environ.get('DB_USER')
 DB_HOST = os.environ.get('DB_HOST')
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
@@ -19,4 +19,5 @@ REDIS_PASS = os.environ.get('REDIS_PASS')
 GALLERY_CHANNEL = os.environ.get('GALLERY_CHANNEL')
 PARTNER_ID = os.environ.get('PARTNER_ID')
 DEV_ID = os.environ.get('DEV_ID')
+OWNER_PARTNER_ID = os.environ.get('OWNER_PARTNER_ID')
 WORKDIR = Path(__file__).parent.parent

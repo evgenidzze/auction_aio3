@@ -15,6 +15,7 @@ app = FastAPI()
 @app.post("/webhook")
 async def paypal_webhook(request: Request):
     payload = await request.json()
+    logging.info(payload)
     event_type = payload.get("event_type")
     resource = payload.get("resource", {})
     if event_type == "MERCHANT.ONBOARDING.COMPLETED":

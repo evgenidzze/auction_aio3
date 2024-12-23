@@ -1,6 +1,6 @@
-.env
 logs.log
 .idea
 __pycache__
 alembic/versions
 dump.rdb
+venv
