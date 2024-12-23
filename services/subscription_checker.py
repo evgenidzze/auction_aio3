@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.ext.asyncio import async_sessionmaker
 from sqlalchemy.future import select
 from datetime import datetime
-from utils.config import BOT_TOKEN
+from utils.config import BOT_TOKEN, DEV_ID
 from database.db_manage import ChannelGroup, engine
 from keyboards.admin_kb import create_subscription_group_buttons_kb
 from aiogram import Bot
@@ -94,20 +94,25 @@ async def main():
     """
     Основний цикл перевірки груп і оновлення флажків.
     """
+    retry_delay = 10  # Затримка між повторними спробами у разі помилки (секунди)
+    error_count = 0
     while True:
         try:
-            # Створюємо нову сесію на кожну ітерацію
             async with async_sessionmaker(engine, class_=AsyncSession)() as session:
                 expired_groups = await process_expired_flags(session)
 
                 # Чекаємо перед наступною перевіркою
                 if not expired_groups:
                     logging.info("No expired groups found. Sleeping...")
+                await asyncio.sleep(CHECK_INTERVAL_SECONDS)
+                error_count = 0
         except Exception as e:
+            if error_count == 10:
+                await bot.send_message(DEV_ID, "Проблема з підключенням до бази даних!")
             logging.exception(f"Error during processing: {e}")
-        finally:
-            # Завжди чекаємо перед наступною ітерацією
-            await asyncio.sleep(CHECK_INTERVAL_SECONDS)
+            logging.info(f"Retrying in {retry_delay} seconds...")
+            await asyncio.sleep(retry_delay)
+            error_count += 1
 
 
 if __name__ == "__main__":

@@ -1,5 +1,6 @@
 import datetime
 import time
+from typing import Literal, TypeAlias
 
 from aiogram import types, Router, F
 from aiogram.enums import ChatMemberStatus
@@ -23,6 +24,8 @@ from utils.utils import get_token_approval, payment_completed, \
 
 from utils.create_bot import scheduler
 from apscheduler.jobstores.base import JobLookupError
+
+TypeSubscription: TypeAlias = Literal['ads', 'auction', 'free_trial', 'universal']
 
 
 class FSMAdmin(StatesGroup):
@@ -163,7 +166,8 @@ async def user_chat_menu(call: types.CallbackQuery, state: FSMContext):
                 sub_dates[sub_type] = f'активовано до {datetime.datetime.fromtimestamp(sub_time).strftime("%d.%m.%Y")}'
                 await update_chat_sql(user_chat_id, **{sub_time_attr: 604800 + current_time})
             else:
-                tokens[sub_type] = await get_token_or_create_new(getattr(chat, f'{sub_type}_token'), user_chat_id, f'{sub_type}_token')
+                tokens[sub_type] = await get_token_or_create_new(getattr(chat, f'{sub_type}_token'), user_chat_id,
+                                                                 f'{sub_type}_token')
                 sub_dates[sub_type] = 'не активовано'
 
     text = (
@@ -179,7 +183,6 @@ async def user_chat_menu(call: types.CallbackQuery, state: FSMContext):
     )
 
     await bot.send_message(chat_id=call.from_user.id, text=text, reply_markup=kb)
-
 
 
 async def update_bot_subscription_status(call, state: FSMContext):
@@ -248,22 +251,25 @@ async def my_chat_member_handler(my_chat_member: types.ChatMemberUpdated):
         )
 
         if last_time_subscribe_timestamp < time.time():
-            await bot.send_message( # Повідомлення про відсутність активної підписки
+            await bot.send_message(  # Повідомлення про відсутність активної підписки
                 chat_id=user_id,
-                text=_("Ви не маєте активних підписок. Оформіть підписку для групи, щоб отримати доступ до потрібних функцій."),
+                text=_(
+                    "Ви не маєте активних підписок. Оформіть підписку для групи, щоб отримати доступ до потрібних функцій."),
                 reply_markup=create_subscription_group_buttons_kb(chat.chat_id, is_trial=chat.free_trial == 0)
             )
             return None
         else:
-            await bot.send_message( # Повідомлення про активну підписку
+            await bot.send_message(  # Повідомлення про активну підписку
                 chat_id=user_id,
-                text=_("Зараз у вас активна підписка типу *{subscribe}* до *{last_time_subscribe}*").format( # Пробна, аукціон, оголошення
+                text=_("Зараз у вас активна підписка типу *{subscribe}* до *{last_time_subscribe}*").format(
+                    # Пробна, аукціон, оголошення
                     subscribe=(
                         _('Пробний період') if is_active_free_trial else
                         _('Універсальна') if chat.auction_paid and chat.ads_paid else
                         _('Аукціон') if chat.auction_paid else _('Оголошення')
                     ),
-                    last_time_subscribe=datetime.datetime.fromtimestamp(last_time_subscribe_timestamp).strftime("%d.%m.%Y"),
+                    last_time_subscribe=datetime.datetime.fromtimestamp(last_time_subscribe_timestamp).strftime(
+                        "%d.%m.%Y"),
                 ),
                 reply_markup=admin_menu_kb.as_markup()
             )
@@ -274,23 +280,25 @@ async def my_chat_member_handler(my_chat_member: types.ChatMemberUpdated):
 
 
 class SubscriptionGroupHandler:
+
     def __init__(self):
         pass
 
     @staticmethod
-    async def scheduled_job_subscribe_is_ending(owner_id: str, type_subscription: str):
+    async def scheduled_job_subscribe_is_ending(owner_id: str, type_subscription: TypeSubscription):
         """Повідомлення за добу до закінчення підписки."""
         message = {
             'ads': _('Ваша підписка на оголошення добігає кінця. Поповніть підписку.'),
             'auction': _('Ваша підписка на аукціон добігає кінця. Поповніть підписку.'),
             'free_trial': _('Ваш пробний період добігає кінця. Поповніть підписку.'),
-            'universal': _('Ваша універсальна підписка добігає кінця. Поповніть підписку.'),
+            'universal': _('Ваша універсальна підписка добігає кінця. Поповніть підписку.'),  # inactive
         }[type_subscription]
 
         await bot.send_message(chat_id=owner_id, text=message)
 
     @staticmethod
-    def create_task_subscribe_is_ending(owner_chat_id: str, group_chat_id: str, type_subscription: str, duration_days: int):
+    def create_task_subscribe_is_ending(owner_chat_id: str, group_chat_id: str, type_subscription: str,
+                                        duration_days: int):
         """Створення задачі на попередження про закінчення підписки."""
         try:
             scheduler.remove_job(f'subscribe:{group_chat_id}')
@@ -398,7 +406,8 @@ def register_admin_handlers(r: Router):
     r.callback_query.register(my_channels_groups, F.data == 'my_channels_groups')  # Пункт меню "Мої групи/канали"
     r.callback_query.register(deny_user_access, F.data == 'deny_user_access')  # Чорний список
     r.callback_query.register(payment_tumbler, F.data.endswith('_payment'))  # Вимкнути/Увімкнути оплату
-    r.callback_query.register(SubscriptionGroupHandler().listening, F.data.startswith("subscription_group"))  # Підписка на групу
+    r.callback_query.register(SubscriptionGroupHandler().listening,
+                              F.data.startswith("subscription_group"))  # Підписка на групу
     r.callback_query.register(add_group, F.data == 'add_group')  # Пункт меню "Підключити групу"
     r.callback_query.register(monetization, F.data == 'monetization')  # Монетизація
     r.callback_query.register(group_id_settings, FSMAdmin.group_id_settings)  # Налаштування групи

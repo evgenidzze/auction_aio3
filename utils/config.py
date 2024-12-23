@@ -18,4 +18,5 @@ AUCTION_CHANNEL = os.environ.get('AUCTION_CHANNEL')
 REDIS_PASS = os.environ.get('REDIS_PASS')
 GALLERY_CHANNEL = os.environ.get('GALLERY_CHANNEL')
 PARTNER_ID = os.environ.get('PARTNER_ID')
+DEV_ID = os.environ.get('DEV_ID')
 WORKDIR = Path(__file__).parent.parent
