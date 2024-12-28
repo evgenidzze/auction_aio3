@@ -43,8 +43,8 @@ async def activate_ad_auction_kb(auction_token, ads_token, user_chat_id, back_bt
         callback_data=f'{user_chat_id}:{auction_token},{ads_token}:sub_update'
     )
     (
-        builder.button(text='Активувати аукціон', url=auction_payment_url)
-        .button(text='Активувати оголошення', url=ads_payment_url)
+        builder.button(text='Активувати аукціон', url=auction_payment_url, pay=True)
+        .button(text='Активувати оголошення', url=ads_payment_url, pay=True)
         .add(update_status_btn)
         .add(back_btn)
     )

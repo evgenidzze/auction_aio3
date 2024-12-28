@@ -4,3 +4,4 @@ __pycache__
 alembic/versions
 dump.rdb
 venv
+.env
