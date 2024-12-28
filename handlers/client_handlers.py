@@ -5,6 +5,7 @@ import time
 from copy import deepcopy
 from random import randint
 from typing import List
+import asyncio
 
 from aiogram import Router, types, F
 from aiogram.enums import ContentType
@@ -25,11 +26,14 @@ from utils.paypal import get_order_status, create_order
 import utils.utils
 
 
-from handlers.middleware import subscription_group_required
+from handlers.middleware import subscription_group_required  # TODO: адмін групи одобряє публікування, в нього треба ловити (а тут модифікований для попередження)
 
 
 locale.setlocale(locale.LC_ALL, 'uk_UA.utf8')
 router = Router()
+
+
+# Декоратор для реєстрування функцій обробників каллбеків @router.register
 
 
 class FSMClient(StatesGroup):
@@ -67,7 +71,38 @@ class FSMClient(StatesGroup):
     group_id = State()
 
 
-async def start(message: types.Message, state: FSMContext):
+callback_query_handlers = []
+message_handlers = []
+
+def callback_query(*args):
+    def decorator(func):
+        async def wrapped(*func_args, **func_kwargs):
+            return await func(*func_args, **func_kwargs)
+
+        callback_query_handlers.append((wrapped, args))
+        return wrapped
+
+    return decorator
+
+def message(*args):
+    def decorator(func):
+        async def wrapped(*func_args, **func_kwargs):
+            return await func(*func_args, **func_kwargs)
+
+        message_handlers.append((wrapped, args))
+        return wrapped
+
+    return decorator
+
+
+########################################################################################################################
+#                                              MENU CLIENT COMMANDS                                                    #
+########################################################################################################################
+
+
+@message(CommandStart(), utils.utils.IsPrivateChatFilter())
+async def start(message: types.Message, state: FSMContext, **kwargs):
+    """/start"""
     for job in scheduler.get_jobs():
         logging.info(f'{job.id}-{job}-{job.kwargs}')
     await state.set_state(FSMClient.language)
@@ -80,7 +115,11 @@ async def start(message: types.Message, state: FSMContext):
                                         reply_markup=client_kb.language_kb)
 
 
-async def main_menu(call, state: FSMContext):
+@callback_query(FSMClient.language)
+@callback_query(F.data == 'main_menu')
+@message(Command('main_menu'), utils.utils.IsPrivateChatFilter())
+async def main_menu(call, state: FSMContext, **kwargs):
+    """/main_menu"""
     clean_text = "Вітаю, <b>{first_name}!</b><a href='https://telegra.ph/file/3f6168cc5f94f115331ac.png'>⠀</a>\n"
     text = _(clean_text).format(first_name=call.from_user.username)
     if isinstance(call, types.CallbackQuery):
@@ -95,12 +134,14 @@ async def main_menu(call, state: FSMContext):
     await state.clear()
 
 
-async def auction_menu(call: types.CallbackQuery, state: FSMContext):
+@callback_query(F.data == 'auction')
+async def auction_menu(call: types.CallbackQuery, state: FSMContext, **kwargs):
     await call.message.edit_text(text=_('Ви обрали 🏷 Аукціон'), reply_markup=client_kb.auction_kb)
     await state.clear()
 
 
-async def my_auctions(call: types.CallbackQuery, state: FSMContext):
+@callback_query(F.data == 'my_auctions')
+async def my_auctions(call: types.CallbackQuery, state: FSMContext, **kwargs):
     lots = await db_manage.get_user_lots(call.from_user.id)
     kb = await utils.utils.create_user_lots_kb(lots)
     kb.inline_keyboard.extend([[client_kb.create_auction_btn], [client_kb.back_to_auction_btn]])
@@ -109,7 +150,28 @@ async def my_auctions(call: types.CallbackQuery, state: FSMContext):
                                  reply_markup=kb)
 
 
-async def ask_city(call: types.CallbackQuery, state: FSMContext):
+@callback_query(F.data == 'groups_and_channels')
+async def groups_and_channels(call: types.CallbackQuery, **kwargs):
+    await call.message.edit_text(text=_('Ви обрали 👥 Групи та канали'), reply_markup=client_kb.group_channels_kb)
+
+
+@callback_query(F.data == 'other_channels_groups')
+async def other_channels_groups(call: types.CallbackQuery, **kwargs):
+    other_chats = await db_manage.get_all_chats()
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text=chat.chat_name, url=chat.chat_link)] for chat in
+                         other_chats])
+    kb.inline_keyboard.extend([[client_kb.back_group_channels_btn]])
+    await call.message.edit_text(text=_('Список каналів у яких працює бот:'),
+                                 reply_markup=kb)
+
+
+########################################################################################################################
+#                                              AUCTION COMMANDS                                                        #
+########################################################################################################################
+
+@callback_query(F.data == 'create_auction', utils.utils.IsMessageType(message_type=[ContentType.TEXT]))
+async def ask_city(call: types.CallbackQuery, state: FSMContext, **kwargs):
     user = await db_manage.get_user(call.from_user.id)
     if user.is_blocked:
         await bot.send_message(chat_id=call.from_user.id, text=_('Вас було заблоковано за порушення правил.'))
@@ -120,7 +182,8 @@ async def ask_city(call: types.CallbackQuery, state: FSMContext):
                                  reply_markup=client_kb.reset_to_auction_menu_kb)
 
 
-async def ask_currency(message: types.Message, state: FSMContext):
+@message(FSMClient.city)
+async def ask_currency(message: types.Message, state: FSMContext, **kwargs):
     await state.update_data(city=message.text)
     await state.set_state(FSMClient.currency)
     await message.answer(text=_('🫰🏼 Оберіть валюту:'),
@@ -128,7 +191,8 @@ async def ask_currency(message: types.Message, state: FSMContext):
                          reply_markup=client_kb.currency_kb)
 
 
-async def ask_description(call: types.CallbackQuery, state: FSMContext):
+@callback_query(FSMClient.currency)
+async def ask_description(call: types.CallbackQuery, state: FSMContext, **kwargs):
     await state.update_data(currency=call.data)
     await state.set_state(FSMClient.description)
     await call.message.edit_text(text=_('📝 Напишіть опис для лоту:\n\n'
@@ -137,7 +201,8 @@ async def ask_description(call: types.CallbackQuery, state: FSMContext):
                                  reply_markup=client_kb.reset_to_auction_menu_kb)
 
 
-async def ask_price(message: types.Message, state: FSMContext):
+@message(FSMClient.description, utils.utils.IsMessageType(message_type=[ContentType.TEXT]))
+async def ask_price(message: types.Message, state: FSMContext, **kwargs):
     await state.update_data(description=message.text)
     await state.set_state(FSMClient.price)
     data = await state.get_data()
@@ -146,7 +211,8 @@ async def ask_price(message: types.Message, state: FSMContext):
                          reply_markup=client_kb.reset_to_auction_menu_kb)
 
 
-async def ask_price_steps(message: types.Message, state: FSMContext):
+@message(FSMClient.price)
+async def ask_price_steps(message: types.Message, state: FSMContext, **kwargs):
     if message.text.isdigit() or await state.get_state() == 'FSMClient:price_steps':
         if await state.get_state() != 'FSMClient:price_steps':
             await state.update_data(price=message.text)
@@ -158,7 +224,8 @@ async def ask_price_steps(message: types.Message, state: FSMContext):
         await ask_price(message, state)
 
 
-async def ask_lot_living(message: types.Message, state: FSMContext):
+@message(FSMClient.price_steps)
+async def ask_lot_living(message: types.Message, state: FSMContext, **kwargs):
     if all(step.isdigit() for step in message.text.split(' ')):
         await state.update_data(price_steps=message.text)
         await state.set_state(FSMClient.lot_time_living)
@@ -170,7 +237,8 @@ async def ask_lot_living(message: types.Message, state: FSMContext):
         await ask_price_steps(message, state)
 
 
-async def ask_media(call: [types.CallbackQuery, types.Message], state: FSMContext):
+@callback_query(FSMClient.lot_time_living)
+async def ask_media(call: [types.CallbackQuery, types.Message], state: FSMContext, **kwargs):
     text = _('📸 Надішліть фото і відео:\n'
              '<i>До 5 фото та до 1 відео</i>')
     if isinstance(call, types.CallbackQuery):
@@ -182,8 +250,11 @@ async def ask_media(call: [types.CallbackQuery, types.Message], state: FSMContex
     await state.set_state(FSMClient.media)
 
 
+@message(FSMClient.media)
+@message(FSMClient.change_media)
+@callback_query(F.data == 'back_to_ready')
 @media_group_handler
-async def ready_lot(messages: List[types.Message], state: FSMContext):
+async def ready_lot(messages: List[types.Message], state: FSMContext, **kwargs):
     state_name = await state.get_state()
     if isinstance(messages[0], types.Message) and 'media' in state_name:
         videos_id, photos_id = await utils.utils.gather_media_from_messages(messages=messages, state=state)
@@ -207,7 +278,8 @@ async def ready_lot(messages: List[types.Message], state: FSMContext):
             await messages[0].message.edit_text(text=_(text), reply_markup=kb)
 
 
-async def lot_publish(message: types.CallbackQuery, state: FSMContext):
+@callback_query(F.data == 'publish_lot')
+async def lot_publish(message: types.CallbackQuery, state: FSMContext, **kwargs):
     fsm_data = await state.get_data()
     video_id = fsm_data.get('video_id')
     photo_id = fsm_data.get('photo_id')
@@ -233,11 +305,17 @@ async def lot_publish(message: types.CallbackQuery, state: FSMContext):
             text=_('Бот не підключений до каналу. Щоб бот функціонував, потрібно надати йому права адміністратора.'))
 
 
-async def add_menu(call: types.CallbackQuery):
+########################################################################################################################
+#                                              ADVERTISEMENT COMMANDS                                                  #
+########################################################################################################################
+
+@callback_query(F.data == 'ad_menu')
+async def add_menu(call: types.CallbackQuery, **kwargs):
     await call.message.edit_text(text=_('Ви обрали 📣 Оголошення'), reply_markup=client_kb.add_menu_kb)
 
 
-async def my_ads(call: types.CallbackQuery, state: FSMContext):
+@callback_query(F.data == 'my_ads')
+async def my_ads(call: types.CallbackQuery, state: FSMContext, **kwargs):
     ads = await db_manage.get_user_ads(call.from_user.id)
     kb = await utils.utils.create_user_lots_kb(ads)
     kb.inline_keyboard.extend([[client_kb.create_advert_btn], [client_kb.back_to_ad_menu_btn]])
@@ -246,7 +324,8 @@ async def my_ads(call: types.CallbackQuery, state: FSMContext):
                                  reply_markup=kb)
 
 
-async def ask_description_ad(call: types.CallbackQuery, state: FSMContext):
+@callback_query(F.data == 'create_ad')
+async def ask_description_ad(call: types.CallbackQuery, state: FSMContext, **kwargs):
     await call.message.edit_text(text=_('Перевірка підписки...'))
     is_subscribed = await utils.utils.adv_sub_time_remain(call.from_user.id)
     redis_obj = job_stores.get('default')
@@ -264,7 +343,8 @@ async def ask_description_ad(call: types.CallbackQuery, state: FSMContext):
         await state.set_state(FSMClient.adv_sub_seconds)
 
 
-async def ask_city_ad(message: types.Message, state: FSMContext):
+@message(FSMClient.description_ad, utils.utils.IsMessageType(message_type=[ContentType.TEXT]))
+async def ask_city_ad(message: types.Message, state: FSMContext, **kwargs):
     if isinstance(message, types.Message):
         await state.update_data(description=message.text)
         await state.set_state(FSMClient.city_ad)
@@ -273,7 +353,8 @@ async def ask_city_ad(message: types.Message, state: FSMContext):
                              reply_markup=client_kb.reset_to_ad_menu_kb)
 
 
-async def ask_media_ad(message: types.Message, state: FSMContext):
+@message(FSMClient.city_ad, utils.utils.IsMessageType(message_type=[ContentType.TEXT]))
+async def ask_media_ad(message: types.Message, state: FSMContext, **kwargs):
     text = _('📸 Надішліть фото і відео:\n'
              '<i>До 5 фото та до 1 відео</i>')
     if isinstance(message, types.CallbackQuery):
@@ -284,8 +365,11 @@ async def ask_media_ad(message: types.Message, state: FSMContext):
     await state.set_state(FSMClient.media_ad)
 
 
+@message(FSMClient.media_ad)
+@message(FSMClient.change_media_ad)
+@callback_query(F.data == 'back_to_ready_ad')
 @media_group_handler
-async def save_media_ad(messages: List[types.Message], state: FSMContext):
+async def save_media_ad(messages: List[types.Message], state: FSMContext, **kwargs):
     await state.update_data(is_ad=True)
     state_name = await state.get_state()
     if isinstance(messages[0], types.Message) and 'media' in state_name:
@@ -306,7 +390,8 @@ async def save_media_ad(messages: List[types.Message], state: FSMContext):
         return
 
 
-async def adv_publish(message, state):
+@callback_query(F.data == 'publish_adv')
+async def adv_publish(message, state, **kwargs):
     fsm_data = await state.get_data()
     video_id = fsm_data.get('video_id')
     photo_id = fsm_data.get('photo_id')
@@ -331,7 +416,8 @@ async def adv_publish(message, state):
         reply_markup=client_kb.main_kb)
 
 
-async def make_bid(message: types.CallbackQuery):
+@callback_query(F.data.startswith('bid'))
+async def make_bid(message: types.CallbackQuery, **kwargs):
     bid_data = message.data.split('_')
     lot_id = bid_data[2]
     lot = await db_manage.get_lot(lot_id)
@@ -383,7 +469,9 @@ async def make_bid(message: types.CallbackQuery):
         await message.answer(text=_('❌ Аукціон закінчено'))
 
 
-async def help_(call: types.CallbackQuery):
+@callback_query(F.data == 'help')
+@callback_query(F.data == 'help')
+async def help_(call: types.CallbackQuery, **kwargs):
     await call.message.edit_text(text=_("По всім запитанням @Oleksandr_Polis\n\n"
                                         "<i>Що таке <a href='https://telegra.ph/Antisnajper-03-31'>"
                                         "<b>⏱ Антиснайпер?</b></a></i>\n"),
@@ -391,7 +479,9 @@ async def help_(call: types.CallbackQuery):
                                  disable_web_page_preview=True)
 
 
-async def show_lot(message: types.CallbackQuery, state: FSMContext):
+@callback_query(F.data == 'show_lot')
+@callback_query(FSMClient.change_lot)
+async def show_lot(message: types.CallbackQuery, state: FSMContext, **kwargs):
     lot_id = message.data
     if not (lot_id.isdigit()):
         data = await state.get_data()
@@ -412,7 +502,9 @@ async def show_lot(message: types.CallbackQuery, state: FSMContext):
     await message.message.answer(text=_('Бажаєте видалити лот?'), reply_markup=client_kb.delete_lot_kb)
 
 
-async def show_ad(message: types.CallbackQuery, state: FSMContext):
+@callback_query(F.data == 'show_ad')
+@callback_query(FSMClient.change_ad)
+async def show_ad(message: types.CallbackQuery, state: FSMContext, **kwargs):
     ad_id = message.data
     if not (ad_id.isdigit()):
         data = await state.get_data()
@@ -431,7 +523,8 @@ async def show_ad(message: types.CallbackQuery, state: FSMContext):
     await message.message.answer(text=_('Бажаєте видалити оголошення?'), reply_markup=client_kb.delete_ad_kb)
 
 
-async def change_media(call: types.CallbackQuery, state: FSMContext):
+@callback_query(F.data == 'change_media')
+async def change_media(call: types.CallbackQuery, state: FSMContext, **kwargs):
     data = await state.get_data()
     if data.get('is_ad'):
         await state.set_state(FSMClient.change_media_ad)
@@ -444,7 +537,8 @@ async def change_media(call: types.CallbackQuery, state: FSMContext):
                                  )
 
 
-async def change_desc(call: types.CallbackQuery, state: FSMContext):
+@callback_query(F.data == 'change_desc')
+async def change_desc(call: types.CallbackQuery, state: FSMContext, **kwargs):
     await state.set_state(FSMClient.change_desc)
     data = await state.get_data()
     if data.get('is_ad'):
@@ -459,7 +553,8 @@ async def change_desc(call: types.CallbackQuery, state: FSMContext):
                                  reply_markup=kb)
 
 
-async def change_start_price(call: types.CallbackQuery, state: FSMContext):
+@callback_query(F.data == 'change_start_price')
+async def change_start_price(call: types.CallbackQuery, state: FSMContext, **kwargs):
     await state.set_state(FSMClient.change_start_price)
     fsm_data = await state.get_data()
     currency = fsm_data.get('currency')
@@ -470,20 +565,23 @@ async def change_start_price(call: types.CallbackQuery, state: FSMContext):
         await call.answer(text=text, reply_markup=client_kb.back_to_ready_kb)
 
 
-async def change_lot_time(call: types.CallbackQuery, state: FSMContext):
+@callback_query(F.data == 'change_lot_time')
+async def change_lot_time(call: types.CallbackQuery, state: FSMContext, **kwargs):
     await state.set_state(FSMClient.change_lot_time)
     kb = (deepcopy(client_kb.lot_time_kb))
     kb.inline_keyboard.extend([[client_kb.back_to_ready_btn]])
     await call.message.edit_text(text=_('🕙 Скільки буде тривати аукціон?'), reply_markup=kb)
 
 
-async def change_price_steps(call: types.CallbackQuery, state: FSMContext):
+@callback_query(F.data == 'change_price_steps')
+async def change_price_steps(call: types.CallbackQuery, state: FSMContext, **kwargs):
     await state.set_state(FSMClient.change_price_steps)
     await call.message.edit_text(text=_('Напишіть крок ставки через пробіл (від 1 до 3 кроків):\n'
                                         'Наприклад: 500 1000 1500'), reply_markup=client_kb.back_to_ready_kb)
 
 
-async def change_city(call: types.CallbackQuery, state: FSMContext):
+@callback_query(F.data == 'change_city')
+async def change_city(call: types.CallbackQuery, state: FSMContext, **kwargs):
     data = await state.get_data()
     await state.set_state(FSMClient.change_city)
 
@@ -494,7 +592,8 @@ async def change_city(call: types.CallbackQuery, state: FSMContext):
     await call.message.edit_text(text=_('Надішліть нову назву міста:'), reply_markup=kb)
 
 
-async def set_desc(message: types.Message, state: FSMContext):
+@message(FSMClient.change_desc)
+async def set_desc(message: types.Message, state: FSMContext, **kwargs):
     await state.update_data(description=message.text)
     data = await state.get_data()
     if data.get('is_ad'):
@@ -503,7 +602,8 @@ async def set_desc(message: types.Message, state: FSMContext):
         await ready_lot(message, state)
 
 
-async def set_start_price(message: types.Message, state: FSMContext):
+@message(FSMClient.change_start_price)
+async def set_start_price(message: types.Message, state: FSMContext, **kwargs):
     if message.text.isdigit():
         await state.update_data(price=message.text)
         await ready_lot(message, state)
@@ -512,12 +612,14 @@ async def set_start_price(message: types.Message, state: FSMContext):
         await change_start_price(message, state)
 
 
-async def set_lot_time(call: types.CallbackQuery, state: FSMContext):
+@message(FSMClient.change_lot_time)
+async def set_lot_time(call: types.CallbackQuery, state: FSMContext, **kwargs):
     await state.update_data(lot_time_living=call.data)
     await ready_lot(call, state)
 
 
-async def set_price_steps(message: types.Message, state: FSMContext):
+@message(FSMClient.change_price_steps)
+async def set_price_steps(message: types.Message, state: FSMContext, **kwargs):
     await state.update_data(price_steps=message.text)
     if all(step.isdigit() for step in message.text.split(' ')):
         await state.update_data(price_steps=message.text)
@@ -527,7 +629,8 @@ async def set_price_steps(message: types.Message, state: FSMContext):
         await change_start_price(message, state)
 
 
-async def set_new_city(message: types.Message, state: FSMContext):
+@message(FSMClient.change_city)
+async def set_new_city(message: types.Message, state: FSMContext, **kwargs):
     await state.update_data(city=message.text)
     data = await state.get_data()
     if data.get('is_ad'):
@@ -536,7 +639,8 @@ async def set_new_city(message: types.Message, state: FSMContext):
         await ready_lot(message, state)
 
 
-async def delete_lot(call: types.CallbackQuery, state: FSMContext):
+@callback_query(F.data == 'delete_lot')
+async def delete_lot(call: types.CallbackQuery, state: FSMContext, **kwargs):
     fsm_data = await state.get_data()
     lot_id = fsm_data.get('change_lot')
     group_id = fsm_data.get('group_id')
@@ -558,7 +662,8 @@ async def delete_lot(call: types.CallbackQuery, state: FSMContext):
         await db_manage.delete_record_by_id(lot_id, db_manage.Lot)
 
 
-async def delete_ad(call: types.CallbackQuery, state: FSMContext):
+@callback_query(F.data == 'delete_ad')
+async def delete_ad(call: types.CallbackQuery, state: FSMContext, **kwargs):
     fsm_data = await state.get_data()
     print(fsm_data)
     ad_id = fsm_data.get('change_ad')
@@ -578,7 +683,8 @@ async def delete_ad(call: types.CallbackQuery, state: FSMContext):
         scheduler.remove_job(f'adv_{ad_id}')
 
 
-async def time_left_popup(call: types.CallbackQuery, state: FSMContext):
+@callback_query(F.data.startswith('time_left'))
+async def time_left_popup(call: types.CallbackQuery, state: FSMContext, **kwargs):
     data = call.data.split('_')
     lot_id = data[-1]
     obj_type = data[-2]
@@ -610,7 +716,8 @@ async def time_left_popup(call: types.CallbackQuery, state: FSMContext):
         await call.answer(text=not_published_text)
 
 
-async def accept_lot(call: types.CallbackQuery, state: FSMContext):
+@callback_query(F.data.startswith('accept_lot'))
+async def accept_lot(call: types.CallbackQuery, state: FSMContext, **kwargs):
     accept = call.data.split('_')
     new_lot_id = accept[-1]
     lot = await db_manage.get_lot(new_lot_id)
@@ -650,7 +757,8 @@ async def accept_lot(call: types.CallbackQuery, state: FSMContext):
         await call.answer(text=_('Лот вже відхилено.'))
 
 
-async def accept_adv(call: types.CallbackQuery, state: FSMContext):
+@callback_query(F.data.startswith('accept_adv'))
+async def accept_adv(call: types.CallbackQuery, state: FSMContext, **kwargs):
     accept = call.data.split('_')
     new_adv_id = accept[-1]
     adv = await db_manage.get_adv(new_adv_id)
@@ -708,6 +816,7 @@ async def accept_adv(call: types.CallbackQuery, state: FSMContext):
         await call.answer(text=_('Оголошення вже відхилено.'))
 
 
+@callback_query(F.data.startswith('decline_lot'))
 async def decline_lot(call: types.CallbackQuery):
     decline = call.data.split('_')
     new_lot_id = decline[-1]
@@ -728,6 +837,7 @@ async def decline_lot(call: types.CallbackQuery):
         await call.answer(text=_('Лот вже відхилено.'))
 
 
+@callback_query(F.data.startswith('decline_adv'))
 async def decline_adv(call: types.CallbackQuery):
     decline = call.data.split('_')
     new_adv_id = decline[-1]
@@ -748,6 +858,7 @@ async def decline_adv(call: types.CallbackQuery):
         await call.answer(text=_('Оголошення вже відхилено.'))
 
 
+@callback_query(F.data.startswith('lot_deletion_'))
 async def lot_deletion(call: types.CallbackQuery):
     data = call.data.split('_')
     action = data[2]
@@ -774,7 +885,8 @@ async def lot_deletion(call: types.CallbackQuery):
         await call.answer(text=_('Запит вже оброблений.'))
 
 
-async def anti_sniper(call: types.CallbackQuery, state: FSMContext):
+@callback_query(F.data == 'anti_sniper')
+async def anti_sniper(call: types.CallbackQuery, state: FSMContext, **kwargs):
     user = await db_manage.get_user(call.from_user.id)
     await state.set_state(FSMClient.sniper_time)
     await call.message.edit_text(text=_('⏱ Ваш поточний час антиснайпингу - {minute}хв.\n'
@@ -782,14 +894,16 @@ async def anti_sniper(call: types.CallbackQuery, state: FSMContext):
         minute=user.anti_sniper.minute), reply_markup=client_kb.anti_kb)
 
 
-async def new_sniper_time(call: types.CallbackQuery, state: FSMContext):
+@callback_query(FSMClient.sniper_time)
+async def new_sniper_time(call: types.CallbackQuery, state: FSMContext, **kwargs):
     new_time = datetime.time(hour=0, minute=int(call.data), second=0)
     await db_manage.update_user_sql(telegram_id=call.from_user.id, anti_sniper=new_time)
     await call.message.edit_text(text=_('✅ Час антиснайпингу змінено на {minute}хв').format(minute=new_time.minute),
                                  reply_markup=client_kb.main_kb)
 
 
-async def create_adv_sub(call: types.CallbackQuery, state: FSMContext):
+@callback_query(FSMClient.adv_sub_seconds)
+async def create_adv_sub(call: types.CallbackQuery, state: FSMContext, **kwargs):
     user = await db_manage.get_user(call.from_user.id)
     if user.user_adv_token:
         status = await get_order_status(user.user_adv_token)
@@ -807,7 +921,8 @@ async def create_adv_sub(call: types.CallbackQuery, state: FSMContext):
                                         'Оплатіть підписку натиснувши на кнопку нижче 👇'), reply_markup=kb)
 
 
-async def update_adv_payment_status(call: types.CallbackQuery, state: FSMContext):
+@callback_query(F.data.startswith('update_'))
+async def update_adv_payment_status(call: types.CallbackQuery, state: FSMContext, **kwargs):
     token = call.data.split('_')[1]
     payment = await utils.utils.payment_completed(token)
     if payment:
@@ -823,7 +938,8 @@ async def update_adv_payment_status(call: types.CallbackQuery, state: FSMContext
         return
 
 
-async def change_desc_exist(call: types.CallbackQuery, state: FSMContext):
+@callback_query(F.data.startswith('change_desc_exist'))
+async def change_desc_exist(call: types.CallbackQuery, state: FSMContext, **kwargs):
     data = await state.get_data()
     object_type = call.data.split('_')[-1]
     await state.update_data(object_type=object_type)
@@ -838,7 +954,8 @@ async def change_desc_exist(call: types.CallbackQuery, state: FSMContext):
     await call.message.edit_text(text=text, reply_markup=kb)
 
 
-async def request_new_desc(message: types.Message, state: FSMContext):
+@message(FSMClient.new_desc_exist)
+async def request_new_desc(message: types.Message, state: FSMContext, **kwargs):
     fsm_data = await state.get_data()
     object_type = fsm_data.get('object_type')
     group_id = fsm_data.get('group_id')
@@ -864,7 +981,8 @@ async def request_new_desc(message: types.Message, state: FSMContext):
                                     change_text=True, new_desc=lot.new_text)
 
 
-async def edit_new_text(call: types.CallbackQuery, state: FSMContext):
+@callback_query(F.data.startswith('edit_new_text'))
+async def edit_new_text(call: types.CallbackQuery, state: FSMContext, **kwargs):
     obj_type = call.data.split(':')[-1]
     obj_id = call.data.split(':')[-3]
     action = call.data.split(':')[-2]
@@ -966,7 +1084,8 @@ async def edit_new_text(call: types.CallbackQuery, state: FSMContext):
                 await call.answer('Запит вже оброблено.')
 
 
-async def republish_adv(call: types.CallbackQuery, state: FSMContext):
+@callback_query(FSMClient.repost_count_answer)
+async def republish_adv(call: types.CallbackQuery, state: FSMContext, **kwargs):
     await call.answer()
     answer = call.data
     if answer == 'yes':
@@ -978,7 +1097,8 @@ async def republish_adv(call: types.CallbackQuery, state: FSMContext):
         return
 
 
-async def save_repost_count(call: types.CallbackQuery, state: FSMContext):
+@callback_query(FSMClient.repost_count)
+async def save_repost_count(call: types.CallbackQuery, state: FSMContext, **kwargs):
     if isinstance(call, types.CallbackQuery):
         if call.data in ('1', '2', '3'):
             await state.update_data(repost_count=call.data)
@@ -995,102 +1115,11 @@ async def save_repost_count(call: types.CallbackQuery, state: FSMContext):
                            reply_to_message_id=last_message_id)
 
 
-async def groups_and_channels(call: types.CallbackQuery):
-    await call.message.edit_text(text=_('Ви обрали 👥 Групи та канали'), reply_markup=client_kb.group_channels_kb)
-
-
-async def other_channels_groups(call: types.CallbackQuery):
-    other_chats = await db_manage.get_all_chats()
-    kb = InlineKeyboardMarkup(
-        inline_keyboard=[[InlineKeyboardButton(text=chat.chat_name, url=chat.chat_link)] for chat in
-                         other_chats])
-    kb.inline_keyboard.extend([[client_kb.back_group_channels_btn]])
-    await call.message.edit_text(text=_('Список каналів у яких працює бот:'),
-                                 reply_markup=kb)
-
-
 def register_client_handlers(r: Router):
+    """Register all handlers for client"""
 
-    r.message.register(start, CommandStart(), utils.utils.IsPrivateChatFilter())
-    r.callback_query.register(main_menu, FSMClient.language)
-    r.callback_query.register(main_menu, F.data == 'main_menu')
-    r.message.register(main_menu, Command('main_menu'), utils.utils.IsPrivateChatFilter())
-    r.callback_query.register(help_, F.data == 'help')
-    r.callback_query.register(auction_menu, F.data == 'auction')
-    r.callback_query.register(my_auctions, F.data == 'my_auctions')
+    for handler, args in callback_query_handlers:
+        r.callback_query.register(handler, *args)
 
-    r.callback_query.register(ask_city, F.data == 'create_auction', utils.utils.IsMessageType(message_type=[ContentType.TEXT]))
-    r.message.register(ask_currency, FSMClient.city)
-    r.callback_query.register(ask_description, FSMClient.currency)
-    r.message.register(ask_price, FSMClient.description, utils.utils.IsMessageType(message_type=[ContentType.TEXT]))
-    r.message.register(ask_price_steps, FSMClient.price)
-    r.message.register(ask_lot_living, FSMClient.price_steps)
-    r.callback_query.register(ask_media, FSMClient.lot_time_living)
-    r.message.register(ready_lot, FSMClient.media)
-    r.callback_query.register(ready_lot, F.data == 'back_to_ready')
-    r.callback_query.register(lot_publish, F.data == 'publish_lot')
-
-    r.callback_query.register(add_menu, F.data == 'ad_menu')
-    r.callback_query.register(my_ads, F.data == 'my_ads')
-    r.callback_query.register(ask_description_ad, F.data == 'create_ad')
-
-
-    r.callback_query.register(ask_description_ad, F.data == 'create_ad')
-    r.message.register(ask_city_ad, FSMClient.description_ad, utils.utils.IsMessageType(message_type=[ContentType.TEXT]))
-    r.message.register(ask_media_ad, FSMClient.city_ad, utils.utils.IsMessageType(message_type=[ContentType.TEXT]))
-    r.message.register(save_media_ad, FSMClient.media_ad,
-                       utils.utils.IsMessageType(message_type=[ContentType.PHOTO, ContentType.VIDEO]))
-
-    r.callback_query.register(save_media_ad, F.data == 'back_to_ready_ad')
-    r.callback_query.register(lot_publish, F.data == 'publish_lot')
-    r.callback_query.register(adv_publish, F.data == 'publish_adv')
-
-    r.callback_query.register(make_bid, F.data.startswith('bid'))
-    r.callback_query.register(show_lot, FSMClient.change_lot)
-    r.callback_query.register(show_lot, F.data == 'show_lot')
-    r.callback_query.register(show_ad, F.data == 'show_ad')
-    r.callback_query.register(show_ad, FSMClient.change_ad)
-
-    r.callback_query.register(change_media, F.data == 'change_media')
-    r.callback_query.register(change_desc, F.data == 'change_desc')
-    r.callback_query.register(change_start_price, F.data == 'change_start_price')
-    r.callback_query.register(change_lot_time, F.data == 'change_lot_time')
-    r.callback_query.register(change_price_steps, F.data == 'change_price_steps')
-    r.callback_query.register(change_city, F.data == 'change_city')
-
-    r.message.register(ready_lot, FSMClient.change_media)
-    r.message.register(save_media_ad, FSMClient.change_media_ad)
-    r.message.register(set_desc, FSMClient.change_desc)
-    r.message.register(set_start_price, FSMClient.change_start_price)
-    r.callback_query.register(set_lot_time, FSMClient.change_lot_time)
-    r.message.register(set_price_steps, FSMClient.change_price_steps)
-    r.message.register(set_new_city, FSMClient.change_city)
-
-    r.callback_query.register(delete_ad, F.data == 'delete_ad')
-    r.callback_query.register(delete_lot, F.data == 'delete_lot')
-    r.callback_query.register(time_left_popup, F.data.startswith('time_left'))
-
-    r.callback_query.register(lot_deletion, F.data.startswith('lot_deletion_'))
-    r.callback_query.register(accept_lot, F.data.startswith('accept_lot'))
-    r.callback_query.register(decline_lot, F.data.startswith('decline_lot'))
-
-    r.callback_query.register(accept_adv, F.data.startswith('accept_adv'))
-    r.callback_query.register(decline_adv, F.data.startswith('decline_adv'))
-
-    r.callback_query.register(help_, F.data == 'help')
-
-    r.callback_query.register(anti_sniper, F.data == 'anti_sniper')
-    r.callback_query.register(new_sniper_time, FSMClient.sniper_time)
-
-    r.callback_query.register(update_adv_payment_status, F.data.startswith('update_'))
-    r.callback_query.register(create_adv_sub, FSMClient.adv_sub_seconds)
-
-    r.callback_query.register(change_desc_exist, F.data.startswith('change_desc_exist'))
-    r.callback_query.register(edit_new_text, F.data.startswith('edit_new_text'))
-    r.message.register(request_new_desc, FSMClient.new_desc_exist)
-    r.callback_query.register(republish_adv, FSMClient.repost_count_answer)
-    r.callback_query.register(save_repost_count, FSMClient.repost_count)
-
-    r.callback_query.register(groups_and_channels, F.data == 'groups_and_channels')
-    r.callback_query.register(other_channels_groups, F.data == 'other_channels_groups')
-
+    for handler, args in message_handlers:
+        r.message.register(handler, *args)
