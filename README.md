@@ -37,7 +37,7 @@
 <b>PAYPAL_CLIENT_SECRET=Secret key 1</b>
 3. Знайти Partner аккаунт в https://developer.paypal.com/dashboard/accounts
 4. Підставити значення в env:<br>
-<b>Account ID=PARTNER_ID</b>
+<b>PARTNER_ID=Account ID</b>
 ### Запуск проєкту
 
 ```bash
