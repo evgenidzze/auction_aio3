@@ -10,8 +10,7 @@ from aiogram.utils.deep_linking import create_start_link
 from aiogram.utils.media_group import MediaGroupBuilder
 
 from utils.create_bot import bot, scheduler, job_stores
-from database.db_manage import get_lot, get_user, update_lot_sql, get_adv, update_adv_sql, get_chat_record, \
-    delete_record_by_id, Lot, Advertisement, update_chat_sql
+import database.db_manage as db_manage
 from keyboards.client_kb import decline_lot_btn, accept_lot_btn, back_to_main_btn, main_kb
 from utils.config import ADVERT_CHANNEL, GALLERY_CHANNEL
 from utils.paypal import create_order, get_order_status, capture, api_domain
@@ -47,15 +46,15 @@ class IsMessageType(BaseFilter):
 
 
 async def lot_ending(job_id, msg_id: types.Message):
-    lot = await get_lot(job_id)
+    lot = await db_manage.get_lot(job_id)
     scheduler.remove_job(f'lot_{job_id}')
     if lot:
         owner_telegram_id = lot.owner_telegram_id
         owner_tg = await bot.get_chat(owner_telegram_id)
-        owner = await get_user(owner_telegram_id)
+        owner = await db_manage.get_user(owner_telegram_id)
         bidder_telegram_id = lot.bidder_telegram_id
         if bidder_telegram_id:
-            bidder = await get_user(bidder_telegram_id)
+            bidder = await db_manage.get_user(bidder_telegram_id)
             winner_tg = await bot.get_chat(bidder_telegram_id)
             await bot.send_message(chat_id=bidder_telegram_id,
                                    text=_('🏆 Вітаю! Ви перемогли у аукціоні <b>{desc}</b>\n'
@@ -63,7 +62,7 @@ async def lot_ending(job_id, msg_id: types.Message):
                                        desc=lot.description[:25]),
                                    reply_markup=main_kb)
             token = await create_order(usd=5)
-            await update_lot_sql(paypal_token=token, lot_id=job_id)
+            await db_manage.update_lot_sql(paypal_token=token, lot_id=job_id)
             kb = await contact_payment_kb_generate(bidder_telegram_id, token, job_id, owner_locale=owner.language)
             redis_instance = job_stores.get('default')
             payment_enabled = redis_instance.redis.get(name='payment')
@@ -78,7 +77,7 @@ async def lot_ending(job_id, msg_id: types.Message):
                 text = _("🏆 Аукціон <b>{desc}</b> завершено!\n"
                          "Можете зв'язатись з переможцем https://t.me/{username}.").format(username=winner_tg.username,
                                                                                            desc=lot.description[:25])
-                await delete_record_by_id(lot.id, Lot)
+                await db_manage.delete_record_by_id(lot.id, db_manage.Lot)
                 await bot.delete_message(chat_id=AUCTION_CHANNEL, message_id=lot.message_id)
                 await bot.send_message(owner_telegram_id, text=text, )
                 text = _(
@@ -93,7 +92,7 @@ async def lot_ending(job_id, msg_id: types.Message):
                                        desc=lot.description[:25]),
 
                                    reply_markup=main_kb)
-            await delete_record_by_id(job_id, Lot)
+            await db_manage.delete_record_by_id(job_id, db_manage.Lot)
 
         """close auction"""
         from utils.config import AUCTION_CHANNEL
@@ -106,12 +105,12 @@ async def lot_ending(job_id, msg_id: types.Message):
 
 
 async def adv_ending(job_id):
-    adv = await get_adv(job_id)
+    adv = await db_manage.get_adv(job_id)
     scheduler.remove_job(f'adv_{job_id}')
     if adv:
         owner_telegram_id = adv.owner_telegram_id
-        owner = await get_user(owner_telegram_id)
-        await delete_record_by_id(job_id, Advertisement)
+        owner = await db_manage.get_user(owner_telegram_id)
+        await db_manage.delete_record_by_id(job_id, db_manage.Advertisement)
         await bot.send_message(chat_id=owner_telegram_id,
                                text=_('⚠️ У вашого оголошення <b>{desc}...</b> завершився термін і його було видалено.',
                                       locale=owner.language).format(
@@ -151,7 +150,7 @@ async def send_post(user_id, send_to_id, photo_id, video_id, description, start_
         photos = []
     if videos is None:
         videos = []
-    user = await get_user(user_id=user_id)
+    user = await db_manage.get_user(user_id=user_id)
     anti_sniper: datetime.time = user.anti_sniper
     kb = await create_price_step_kb(price_steps, lot_id, currency)
     caption = ''
@@ -215,7 +214,7 @@ async def send_advert(user_id, send_to_id, description, city, video_id, photo_id
         photos = []
     if videos is None:
         videos = []
-    user = await get_user(user_id=user_id)
+    user = await db_manage.get_user(user_id=user_id)
     caption = ''
     user_tg = await bot.get_chat(user.telegram_id)
     kb = InlineKeyboardMarkup(inline_keyboard=[])
@@ -460,7 +459,7 @@ async def gather_media_from_messages(messages: List[types.Message], state) -> Tu
 
 
 async def adv_sub_time_remain(user_id):
-    user = await get_user(user_id)
+    user = await db_manage.get_user(user_id)
     adv_sub_time: int = user.advert_subscribe_time
     time_remain = adv_sub_time - time.time()
     if time_remain > 0:
@@ -476,7 +475,7 @@ async def adv_sub_time_remain(user_id):
 
 
 async def user_have_approved_adv_token(user_id) -> bool:
-    user = await get_user(user_id)
+    user = await db_manage.get_user(user_id)
     token = user.user_adv_token
     if token:
         return await payment_completed(token)
@@ -502,7 +501,7 @@ async def payment_kb(token, activate_btn_text, callback_data, back_btn: InlineKe
 
 async def repost_adv(job_id, username):
     logging.info(f'start repost adv job_id={job_id}')
-    adv = await get_adv(job_id)
+    adv = await db_manage.get_adv(job_id)
     chat = await bot.get_chat(chat_id=ADVERT_CHANNEL)
     if adv and chat:
         kb = InlineKeyboardMarkup(inline_keyboard=[])
@@ -513,7 +512,7 @@ async def repost_adv(job_id, username):
                                              message_id=adv.message_id, reply_markup=kb)
         await bot.delete_message(chat_id=ADVERT_CHANNEL, message_id=adv.message_id)
         post_link = f'https://t.me/{chat.username}/{new_message.message_id}'
-        await update_adv_sql(job_id, message_id=new_message.message_id, post_link=post_link)
+        await db_manage.update_adv_sql(job_id, message_id=new_message.message_id, post_link=post_link)
     else:
         logging.info(f'adv where id={job_id} doesnt exist or chat {ADVERT_CHANNEL}')
 
@@ -554,7 +553,7 @@ async def get_token_or_create_new(token, user_chat_id, token_type: str):
         if status in ('CREATED', 'APPROVED'):
             return token
     new_token = await create_order(usd=1)
-    await update_chat_sql(user_chat_id, **{token_type: new_token})
+    await db_manage.update_chat_sql(user_chat_id, **{token_type: new_token})
     return new_token
 
 
