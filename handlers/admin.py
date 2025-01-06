@@ -140,13 +140,13 @@ async def my_channels_groups(call: types.CallbackQuery, state: FSMContext):
                          user_chats])
     kb.inline_keyboard.extend([[add_group_kb], [back_to_admin_btn]])
     await state.set_state(FSMAdmin.user_chat_id)
-    await call.message.edit_text(text=_('Ваші групи/канали.\n'
-                                        'Щоб активувати або перевірити статус бота, оберіть потрібну групу/канал:'),
+    await call.message.edit_text(text=_('Ваші групи.\n'
+                                        'Щоб активувати або перевірити статус бота, оберіть потрібну групу:'),
                                  reply_markup=kb)
 
 
 async def user_chat_menu(call: types.CallbackQuery, state: FSMContext):
-    """Після натискання на кнопку Мої групи/канали та вибору групи/каналу"""
+    """Після натискання на кнопку Функціонал груп та вибору групи"""
     await call.message.edit_text(text=_('Перевірка підписки...'))
 
     user_chat_id = call.data.split(':')[0]
@@ -182,7 +182,8 @@ async def user_chat_menu(call: types.CallbackQuery, state: FSMContext):
         user_chat_id=user_chat_id
     )
 
-    await bot.send_message(chat_id=call.from_user.id, text=text, reply_markup=kb)
+    # await bot.send_message(chat_id=call.from_user.id, text=text, reply_markup=kb)
+    await call.message.edit_text( text=text, reply_markup=kb)
 
 
 async def update_bot_subscription_status(call, state: FSMContext):
@@ -379,6 +380,7 @@ async def not_registered_partner(message: types.Message):
 
 
 async def monetization(call: types.CallbackQuery):
+    await call.message.edit_text(text=_('Перевірка партнера...'))
     is_partner = await user_is_merchant_api(call.from_user.id)
     if is_partner:
         await call.message.edit_text(text='Вітаю, ви партнер!',

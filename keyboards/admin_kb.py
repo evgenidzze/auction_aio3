@@ -7,9 +7,12 @@ from utils.utils import payment_link_generate
 
 def create_subscription_group_buttons_kb(chat_id, is_trial=False):
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text='🔑 Пробний період (14 днів)', callback_data=f'subscription_group_trial_14_{chat_id}')]  if is_trial else [],
-        [InlineKeyboardButton(text='🔑 Підписка на аукціон (1 місяць)', callback_data=f'subscription_group_auction_30_{chat_id}')],
-        [InlineKeyboardButton(text='🔑 Підписка на оголошення (1 місяць)', callback_data=f'subscription_group_ads_30_{chat_id}')],
+        [InlineKeyboardButton(text='🔑 Пробний період (14 днів)',
+                              callback_data=f'subscription_group_trial_14_{chat_id}')] if is_trial else [],
+        [InlineKeyboardButton(text='🔑 Підписка на аукціон (1 місяць)',
+                              callback_data=f'subscription_group_auction_30_{chat_id}')],
+        [InlineKeyboardButton(text='🔑 Підписка на оголошення (1 місяць)',
+                              callback_data=f'subscription_group_ads_30_{chat_id}')],
     ])
 
 
@@ -28,26 +31,23 @@ groups_manage_btn = InlineKeyboardButton(text='Керування групами
 add_group_kb = InlineKeyboardButton(text='🔌 Підключити групу', callback_data='add_group')
 monetization = InlineKeyboardButton(text='💰 Монетизація', callback_data='monetization')
 
-my_channels_groups = InlineKeyboardButton(text='Мої групи/канали', callback_data='my_channels_groups')
+my_channels_groups = InlineKeyboardButton(text='⚙️ Функціонал груп', callback_data='my_channels_groups')
 
 admin_menu_kb.row(my_channels_groups, add_group_kb).row(monetization, black_list_btn)
 
 
 async def activate_ad_auction_kb(auction_token, ads_token, user_chat_id, back_btn):
-    auction_payment_url = await payment_link_generate(auction_token)
-    ads_payment_url = await payment_link_generate(ads_token)
-
     builder = InlineKeyboardBuilder()
-    update_status_btn = InlineKeyboardButton(
-        text=_('🔄 Оновити статус'),
-        callback_data=f'{user_chat_id}:{auction_token},{ads_token}:sub_update'
-    )
-    (
-        builder.button(text='Активувати аукціон', url=auction_payment_url)
-        .button(text='Активувати оголошення', url=ads_payment_url)
-        .add(update_status_btn)
-        .add(back_btn)
-    )
-    builder.adjust(2)
 
+    if auction_token or ads_token:
+        if auction_token:
+            auction_payment_url = await payment_link_generate(auction_token)
+            builder.button(text='Активувати аукціон', url=auction_payment_url)
+        if ads_token:
+            ads_payment_url = await payment_link_generate(ads_token)
+            builder.button(text='Активувати оголошення', url=ads_payment_url)
+        builder.button(text=_('🔄 Оновити статус'),
+                       callback_data=f'{user_chat_id}:{auction_token},{ads_token}:sub_update')
+    builder.add(back_to_admin_btn)
+    builder.adjust(2)
     return builder.as_markup()
