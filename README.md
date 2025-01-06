@@ -11,7 +11,7 @@
        touch .env
     - для локального запуску
         ```bash
-       touch .local.envs
+       touch .local.env
         ```
 2. Заповніть файл середовища потрібними змінними:
    ```bash
