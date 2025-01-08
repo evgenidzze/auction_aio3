@@ -71,7 +71,7 @@ import functools
 from datetime import datetime
 from typing import Callable, List
 from aiogram.types import Message
-from database.db_manage import get_chat_record
+from database.db_manage import get_chat_record, get_subscription
 
 
 # TODO: Накладіть цей декоратор на ваші функції, які вимагають підписки. Приклад використання: @subscription_group_required("auction", "ads")
@@ -86,20 +86,20 @@ def subscription_group_required(*subscription_types: List[str]):
     def decorator(func: Callable):
         @functools.wraps(func)
         async def wrapper(message: Message, *args, **kwargs):
-            chat = await get_chat_record(message.chat.id)  # Заміна на вашу функцію отримання групи
+            chat_subscription = await get_subscription(message.chat.id)  # Заміна на вашу функцію отримання групи
 
             if "free_trial" in subscription_types:
-                if chat.free_trial or datetime.utcnow().timestamp() < chat.free_trial:
+                if chat_subscription.free_trial or datetime.utcnow().timestamp() < chat_subscription.free_trial:
                     # Ця функція доступна для груп з активним пробним періодом.
                     return await func(message, *args, **kwargs)
 
             if "auction" in subscription_types:
-                if chat.auction_paid:
+                if chat_subscription.auction_paid:
                     # Ця функція доступна для груп з активною підпискою на лоти.
                     return await func(message, *args, **kwargs)
 
             if "ads" in subscription_types:
-                if chat.ads_paid:
+                if chat_subscription.ads_paid:
                     # Ця функція доступна для груп з активною підпискою на оголошення.
                     return await func(message, *args, **kwargs)
 

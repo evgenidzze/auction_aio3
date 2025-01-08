@@ -5,7 +5,7 @@ from sqlalchemy import String, Integer, Text, ForeignKey, select, update, delete
     Enum
 from sqlalchemy.dialects.mysql import insert
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncAttrs
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, selectinload
 from utils.config import DB_PASS, DB_NAME, DB_HOST, DB_USER, PORT
 from enum import Enum as PyEnum
 
@@ -49,7 +49,8 @@ class User(Base):
                                                        default=datetime.time(hour=0, minute=10, second=0))
     advert_subscribe_time: Mapped[int] = mapped_column(nullable=False, default='0')
     user_adv_token: Mapped[str] = mapped_column(type_=String(255), nullable=True, unique=True)
-    partner_referral_token: Mapped[str] = mapped_column(type_=String(255), nullable=True, unique=True)  # token of created referral link
+    partner_referral_token: Mapped[str] = mapped_column(type_=String(255), nullable=True,
+                                                        unique=True)  # token of created referral link
     merchant_id: Mapped[str] = mapped_column(type_=String(100), nullable=True, unique=True)  # id of activated merchant
 
     def __repr__(self):
@@ -174,10 +175,44 @@ class ChannelGroup(Base):
     owner_telegram_id: Mapped[str] = mapped_column(ForeignKey('User.telegram_id'), nullable=False)
     chat_id: Mapped[str] = mapped_column(primary_key=True, type_=String(45), nullable=False, unique=True)
     chat_type: Mapped[GroupType] = mapped_column(Enum(GroupType), nullable=False)
-    # is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     chat_link: Mapped[str] = mapped_column(nullable=True, type_=String(255), default=None, server_default=None)
-
     # paypal_token: Mapped[str] = mapped_column(type_=String(255), nullable=True, unique=True)
+
+    # auction_sub_time: Mapped[int] = mapped_column(nullable=False, default=0, server_default="0")
+    # auction_paid: Mapped[bool] = mapped_column(type_=Boolean, default=False)
+    # auction_token: Mapped[str] = mapped_column(type_=String(255), nullable=True, unique=True)
+    #
+    # ads_sub_time: Mapped[int] = mapped_column(nullable=False, default=0, server_default="0")
+    # ads_paid: Mapped[bool] = mapped_column(type_=Boolean, default=False)
+    # ads_token: Mapped[str] = mapped_column(type_=String(255), nullable=True, unique=True)
+    #
+    # free_trial: Mapped[int] = mapped_column(nullable=False, default=0, server_default="0")
+    subscription_plan: Mapped["GroupSubscriptionPlan"] = relationship('GroupSubscriptionPlan', uselist=False,
+                                                                      back_populates='group')
+
+    def __repr__(self):
+        return f'<ChannelGroup {self.id}>'
+
+
+class GroupSubscriptionPlan(Base):
+    """
+    Модель підписки на групу. В одної групи - одна підписка.
+
+    Атрибути:
+        group (ChannelGroup): Об'єкт групи.
+        auction_sub_time (int): Час підписки на аукціон.
+        auction_paid (bool): Прапорець оплати аукціону.
+        auction_token (str): Токен аукціону.
+        ads_sub_time (int): Час підписки на оголошення.
+        ads_paid (bool): Прапорець оплати на оголошення.
+        ads_token (str): Токен оголошення.
+        free_trial (int): Час unix безкоштовної підписки.
+    """
+    __tablename__ = 'GroupSubscriptionPlan'
+    id: Mapped[int] = mapped_column(primary_key=True, nullable=False, autoincrement=True, unique=True)
+
+    group_fk: Mapped[int] = mapped_column(ForeignKey('ChannelGroup.id'))
+    group: Mapped["ChannelGroup"] = relationship("ChannelGroup", back_populates="subscription_plan", uselist=False)
 
     auction_sub_time: Mapped[int] = mapped_column(nullable=False, default=0, server_default="0")
     auction_paid: Mapped[bool] = mapped_column(type_=Boolean, default=False)
@@ -190,7 +225,7 @@ class ChannelGroup(Base):
     free_trial: Mapped[int] = mapped_column(nullable=False, default=0, server_default="0")
 
     def __repr__(self):
-        return f'<ChannelGroup {self.id}>'
+        return f'<GroupSubscriptionPlan {self.id}>'
 
 
 ########################################################################################################################
@@ -493,7 +528,17 @@ async def get_chat_record(chat_id):
     :return: Об'єкт ChannelGroup або None, якщо запис не знайдено.
     """
     async with async_session() as session:
-        stmt = select(ChannelGroup).where(ChannelGroup.chat_id == chat_id)
+        stmt = select(ChannelGroup).options(selectinload(ChannelGroup.subscription_plan)).where(
+            ChannelGroup.chat_id == chat_id)
+        res = await session.execute(stmt)
+        chat = res.scalars().first()
+        return chat
+
+
+async def get_subscription(group_id):
+    async with async_session() as session:
+        stmt = select(GroupSubscriptionPlan).options(selectinload(GroupSubscriptionPlan.group)).where(
+            ChannelGroup.chat_id == group_id)
         res = await session.execute(stmt)
         chat = res.scalars().first()
         return chat
@@ -516,3 +561,20 @@ async def update_chat_sql(chat_id, **kwargs):
             print(f"Error updating chat {chat_id}: {e}")
             raise e
 
+
+async def update_group_subscription_sql(chat_id, **kwargs):
+    """
+    Оновлює інформацію про підписку у базі за group_id (Group telegram id).
+
+    :param chat_id: Унікальний ідентифікатор чату.
+    :param kwargs: Поля, які потрібно оновити (ключ-значення).
+    """
+    async with async_session() as session:
+        stmt = update(GroupSubscriptionPlan).where(ChannelGroup.chat_id == chat_id).values(**kwargs)
+        try:
+            await session.execute(stmt)
+            await session.commit()
+        except Exception as e:
+            await session.rollback()
+            print(f"Error updating subscription of chat {chat_id}: {e}")
+            raise e

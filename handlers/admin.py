@@ -13,7 +13,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from handlers.client_handlers import router
 from utils.create_bot import job_stores, bot, _
 from database.db_manage import get_user, update_user_sql, get_user_chats, get_chat_record, update_chat_sql, \
-    create_group_channel
+    create_group_channel, get_subscription
 from keyboards.admin_kb import reject_to_admin_btn, back_to_admin_btn, back_to_group_manage_btn, \
     unblock_user_btn, block_user_btn, back_my_channels_groups, \
     activate_ad_auction_kb, admin_menu_kb, create_subscription_group_buttons_kb, add_group_kb
@@ -150,23 +150,22 @@ async def user_chat_menu(call: types.CallbackQuery, state: FSMContext):
     await call.message.edit_text(text=_('Перевірка підписки...'))
 
     user_chat_id = call.data.split(':')[0]
-    chat = await get_chat_record(user_chat_id)
-
+    chat_subscription = await get_subscription(user_chat_id)
     tokens = {'auction': None, 'ads': None}
     sub_dates = {}
     current_time = time.time()
 
     for sub_type, sub_time_attr in [('auction', 'auction_sub_time'), ('ads', 'ads_sub_time')]:
-        sub_time = getattr(chat, sub_time_attr)
+        sub_time = getattr(chat_subscription, sub_time_attr)
         if sub_time > current_time:
             sub_dates[sub_type] = f'активовано до {datetime.datetime.fromtimestamp(sub_time).strftime("%d.%m.%Y")}'
         else:
-            token_approved = await get_token_approval(chat, type_=sub_type)
+            token_approved = await get_token_approval(chat_subscription, type_=sub_type)
             if token_approved:
                 sub_dates[sub_type] = f'активовано до {datetime.datetime.fromtimestamp(sub_time).strftime("%d.%m.%Y")}'
                 await update_chat_sql(user_chat_id, **{sub_time_attr: 604800 + current_time})
             else:
-                tokens[sub_type] = await get_token_or_create_new(getattr(chat, f'{sub_type}_token'), user_chat_id,
+                tokens[sub_type] = await get_token_or_create_new(getattr(chat_subscription, f'{sub_type}_token'), user_chat_id,
                                                                  f'{sub_type}_token')
                 sub_dates[sub_type] = 'не активовано'
 
@@ -243,12 +242,13 @@ async def my_chat_member_handler(my_chat_member: types.ChatMemberUpdated):
             chat_link=chat_link,
         )
         chat = await get_chat_record(my_chat_member.chat.id)
-        is_active_free_trial = datetime.datetime.fromtimestamp(chat.free_trial) > datetime.datetime.now()
+        chat_subscription = chat.subscription_plan
+        is_active_free_trial = datetime.datetime.fromtimestamp(chat_subscription.free_trial) > datetime.datetime.now()
 
         last_time_subscribe_timestamp = (
-            chat.free_trial if is_active_free_trial else
-            chat.auction_sub_time if chat.auction_paid else
-            chat.ads_sub_time if chat.ads_paid else 0
+            chat_subscription.free_trial if is_active_free_trial else
+            chat_subscription.auction_sub_time if chat_subscription.auction_paid else
+            chat_subscription.ads_sub_time if chat_subscription.ads_paid else 0
         )
 
         if last_time_subscribe_timestamp < time.time():
@@ -256,7 +256,7 @@ async def my_chat_member_handler(my_chat_member: types.ChatMemberUpdated):
                 chat_id=user_id,
                 text=_(
                     "Ви не маєте активних підписок. Оформіть підписку для групи, щоб отримати доступ до потрібних функцій."),
-                reply_markup=create_subscription_group_buttons_kb(chat.chat_id, is_trial=chat.free_trial == 0)
+                reply_markup=create_subscription_group_buttons_kb(chat.chat_id, is_trial=chat_subscription.free_trial == 0)
             )
             return None
         else:
@@ -266,8 +266,8 @@ async def my_chat_member_handler(my_chat_member: types.ChatMemberUpdated):
                     # Пробна, аукціон, оголошення
                     subscribe=(
                         _('Пробний період') if is_active_free_trial else
-                        _('Універсальна') if chat.auction_paid and chat.ads_paid else
-                        _('Аукціон') if chat.auction_paid else _('Оголошення')
+                        _('Універсальна') if chat_subscription.auction_paid and chat_subscription.ads_paid else
+                        _('Аукціон') if chat_subscription.auction_paid else _('Оголошення')
                     ),
                     last_time_subscribe=datetime.datetime.fromtimestamp(last_time_subscribe_timestamp).strftime(
                         "%d.%m.%Y"),
@@ -331,12 +331,12 @@ class SubscriptionGroupHandler:
         type_subscribe = callback_query.data.split('_')[-3]  # trial, auction, ads, universal
 
         current_time = time.time()
-        chat_data = await get_chat_record(group_chat_id)
-        ads_update_duration = max(chat_data.ads_sub_time, current_time) + duration_days * 86400
-        auction_update_duration = max(chat_data.auction_sub_time, current_time) + duration_days * 86400
+        chat_subscription = await get_subscription(group_chat_id)
+        ads_update_duration = max(chat_subscription.ads_sub_time, current_time) + duration_days * 86400
+        auction_update_duration = max(chat_subscription.auction_sub_time, current_time) + duration_days * 86400
 
         if type_subscribe == 'trial':
-            if chat_data.free_trial > 0:
+            if chat_subscription.free_trial > 0:
                 await callback_query.message.edit_text(
                     text=_("Пробний період вже було використано."),
                     reply_markup=admin_menu_kb.as_markup()

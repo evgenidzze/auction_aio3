@@ -15,6 +15,6 @@ async def async_main() -> None:
     async with engine.connect() as conn:
         res = await conn.execute(text('show tables;'))
         if 'alembic_version' in res.scalars().all():
-            await conn.execute(text('DELETE FROM alembic_version;'))
+            await conn.execute(text('TRUNCATE TABLE alembic_version;'))
     await engine.dispose()
 asyncio.run(async_main())

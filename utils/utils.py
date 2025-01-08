@@ -483,11 +483,11 @@ async def user_have_approved_adv_token(user_id) -> bool:
         return False
 
 
-async def get_token_approval(chat, type_: Literal['auction', 'ads']) -> bool:
+async def get_token_approval(chat_subscription, type_: Literal['auction', 'ads']) -> bool:
     if type_ == 'auction':
-        token_approved = await payment_completed(chat.auction_token)
+        token_approved = await payment_completed(chat_subscription.auction_token)
     else:
-        token_approved = await payment_completed(chat.ads_token)
+        token_approved = await payment_completed(chat_subscription.ads_token)
     return token_approved
 
 
@@ -553,7 +553,7 @@ async def get_token_or_create_new(token, user_chat_id, token_type: str):
         if status in ('CREATED', 'APPROVED'):
             return token
     new_token = await create_order(usd=1)
-    await db_manage.update_chat_sql(user_chat_id, **{token_type: new_token})
+    await db_manage.update_group_subscription_sql(user_chat_id, **{token_type: new_token})
     return new_token
 
 

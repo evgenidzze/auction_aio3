@@ -10,8 +10,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.ext.asyncio import async_sessionmaker
 from sqlalchemy.future import select
 from datetime import datetime
+from sqlalchemy.orm import selectinload
 from utils.config import BOT_TOKEN, DEV_ID
-from database.db_manage import ChannelGroup, engine
+from database.db_manage import ChannelGroup, engine, GroupSubscriptionPlan
 from keyboards.admin_kb import create_subscription_group_buttons_kb
 from aiogram import Bot
 from aiogram.utils.i18n import I18n
@@ -19,7 +20,6 @@ from pathlib import Path
 
 # Ініціалізуємо локалізацію
 _ = I18n(path=Path(__file__).parent.parent / 'locales', domain='auction').gettext
-
 
 # --- Конфігурація ---
 BATCH_SIZE = 500  # Розмір батчу
@@ -45,7 +45,8 @@ async def send_end_subscription_message(owner_id: str, chat_id: str, group_title
     }[type_subscription]
 
     # to owner
-    await bot.send_message(owner_id, f"{message[0]} '{group_title}'", reply_markup=create_subscription_group_buttons_kb(chat_id))
+    await bot.send_message(owner_id, f"{message[0]} '{group_title}'",
+                           reply_markup=create_subscription_group_buttons_kb(chat_id))
     # to groups
     await bot.send_message(chat_id, message[1])
 
@@ -58,30 +59,44 @@ async def process_expired_flags(session: AsyncSession):
     current_timestamp = datetime.utcnow().timestamp()
 
     # Вибираємо групи, у яких закінчився auction_time або ads_time
+    # query = (
+    #     select(ChannelGroup)
+    #     .where(
+    #         (ChannelGroup.subscription_plan.auction_sub_time < current_timestamp) & ChannelGroup.subscription_plan.auction_paid.is_(True) |
+    #         (ChannelGroup.subscription_plan.ads_sub_time < current_timestamp) & ChannelGroup.subscription_plan.ads_paid.is_(True)
+    #     )
+    #     .limit(BATCH_SIZE)
+    # )
     query = (
-        select(ChannelGroup)
+        select(GroupSubscriptionPlan)
+        .options(selectinload(GroupSubscriptionPlan.group))
         .where(
-            (ChannelGroup.auction_sub_time < current_timestamp) & ChannelGroup.auction_paid.is_(True) |
-            (ChannelGroup.ads_sub_time < current_timestamp) & ChannelGroup.ads_paid.is_(True)
-        )
+            (GroupSubscriptionPlan.auction_sub_time < current_timestamp)
+            &
+            GroupSubscriptionPlan.auction_paid.is_(True)
+            |
+            (GroupSubscriptionPlan.ads_sub_time < current_timestamp)
+            &
+            GroupSubscriptionPlan.ads_paid.is_(True))
         .limit(BATCH_SIZE)
     )
-
     # Отримуємо групи батчами
     result = await session.execute(query)
-    groups = result.scalars().all()
+    subscriptions = result.scalars().all()
+    groups = []
 
     # Якщо немає груп, виходимо
-    if not groups:
-        return []
-
+    if not subscriptions:
+        return groups
     # Оновлюємо флажки для груп
-    for i, group in enumerate(groups):
-        if group.auction_sub_time < current_timestamp and group.auction_paid:
-            group.auction_paid = False
+    for subscription in subscriptions:
+        group = subscription.group
+        groups.append(group)
+        if subscription.auction_sub_time < current_timestamp and subscription.auction_paid:
+            subscription.auction_paid = False
             await send_end_subscription_message(group.owner_telegram_id, group.chat_id, group.chat_name, "auction")
-        if group.ads_sub_time < current_timestamp and group.ads_paid:
-            group.ads_paid = False
+        if subscription.ads_sub_time < current_timestamp and subscription.ads_paid:
+            subscription.ads_paid = False
             await send_end_subscription_message(group.owner_telegram_id, group.chat_id, group.chat_name, "ads")
 
     # Зберігаємо зміни
@@ -117,4 +132,5 @@ async def main():
 
 if __name__ == "__main__":
     import asyncio
+
     asyncio.run(main())
