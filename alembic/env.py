@@ -9,7 +9,12 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from alembic import context
 
 sys.path = ['', '..'] + sys.path[1:]
-from database.db_manage import Base
+from database.models.base import Base
+from database.models.advertisement import Advertisement
+from database.models.channel_group import ChannelGroup
+from database.models.group_subscription_plan import GroupSubscriptionPlan
+from database.models.lot import Lot
+from database.models.user import User
 from utils.config import DB_NAME, DB_HOST, DB_PASS, DB_USER
 
 # this is the Alembic Config object, which provides
@@ -26,7 +31,6 @@ config.set_main_option('sqlalchemy.url', f"mysql+aiomysql://{DB_USER}:{DB_PASS}@
 # for 'autogenerate' support
 # from myapp import mymodel
 target_metadata = Base.metadata
-
 
 
 # other values from the config, defined by the needs of envs.py,

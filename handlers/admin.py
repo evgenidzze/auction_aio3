@@ -10,17 +10,19 @@ from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Update
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
+from database.services.group_channel_service import GroupChannelService
+from database.services.group_subscription_plan_service import GroupSubscriptionPlanService
+from database.services.user_service import UserService
 from handlers.client_handlers import router
 from utils.create_bot import job_stores, bot, _
-from database.db_manage import get_user, update_user_sql, get_user_chats, get_chat_record, update_chat_sql, \
-    create_group_channel, get_subscription
+
 from keyboards.admin_kb import reject_to_admin_btn, back_to_admin_btn, back_to_group_manage_btn, \
     unblock_user_btn, block_user_btn, back_my_channels_groups, \
     activate_ad_auction_kb, admin_menu_kb, create_subscription_group_buttons_kb, add_group_kb
 from keyboards.client_kb import main_kb
 from utils.paypal import create_partner_referral_url_and_token, user_is_merchant_api
 from utils.utils import get_token_approval, payment_completed, \
-    get_token_or_create_new
+    get_token_or_create_new, generate_chats_kb
 
 from utils.create_bot import scheduler
 from apscheduler.jobstores.base import JobLookupError
@@ -29,8 +31,8 @@ TypeSubscription: TypeAlias = Literal['ads', 'auction', 'free_trial', 'universal
 
 
 class FSMAdmin(StatesGroup):
+    monetize_chat = State()
     user_chat_id = State()
-    group_id_settings = State()
     user_id = State()
 
 
@@ -61,7 +63,7 @@ async def user_access(message: types.Message, state: FSMContext):
     else:
         fsm_data = await state.get_data()
         user_id = fsm_data.get('black_user_id')
-    user = await get_user(user_id)
+    user = await UserService.get_user(user_id)
 
     if user:
         kb = InlineKeyboardMarkup(inline_keyboard=[])
@@ -86,9 +88,9 @@ async def user_access(message: types.Message, state: FSMContext):
 async def change_user_access(call: types.CallbackQuery, state: FSMContext):
     user_id, action = call.data.split('_')[1:3]
     if action == 'block':
-        await update_user_sql(user_id, is_blocked=1)
+        await UserService.update_user_sql(user_id, is_blocked=1)
     else:
-        await update_user_sql(user_id, is_blocked=0)
+        await UserService.update_user_sql(user_id, is_blocked=0)
     await user_access(call, state)
     return
 
@@ -104,25 +106,36 @@ async def payment_tumbler(call: types.CallbackQuery, state: FSMContext):
 
 
 async def group_id_settings(call: types.CallbackQuery, state: FSMContext):
-    await state.update_data(group_id_settings=call.data)
-    group = await get_chat_record(call.data)
+    await state.set_state(None)
+    chat_id = call.data
+    chat = await bot.get_chat(chat_id=chat_id)
+    subscription = await GroupSubscriptionPlanService.get_subscription(chat_id)
     kb_builder = InlineKeyboardBuilder()
-    kb_builder.add(
-        InlineKeyboardButton(text='❌ Деактивувати аукціон', callback_data='1'),
-        InlineKeyboardButton(text='❌ Деактивувати платні лоти', callback_data='1'),
-        InlineKeyboardButton(text='❌ Деактивувати оголошення', callback_data='1'),
-        InlineKeyboardButton(text='❌ Деактивувати платні оголошення', callback_data='1'),
-    )
-    kb_builder.add(back_to_group_manage_btn)
+    auction_payment_btn = InlineKeyboardButton(text='Активувати платні лоти',
+                                               callback_data=f'paid_lot:activate:{chat_id}')
+    ads_payment_btn = InlineKeyboardButton(text='Активувати платні оголошення',
+                                           callback_data=f'paid_ads:activate:{chat_id}')
+    if subscription.ads_sub_time > time.time():
+        auction_payment_btn.text = '❌ Деактивувати платні лоти'
+        auction_payment_btn.callback_data = f'paid_lot:deactivate:{chat_id}'
+    if subscription.auction_sub_time > time.time():
+        ads_payment_btn.text = '❌ Деактивувати платні оголошення'
+        ads_payment_btn.callback_data = f'paid_ads:deactivate:{chat_id}'
+
+    kb_builder.add(auction_payment_btn, ads_payment_btn, back_to_group_manage_btn)
     kb_builder.adjust(1)
     await call.message.edit_text(text='Налаштування групи {group}\n\n'
-                                      '🟢 Функція аукціону активована\n'
-                                      '🟢 Платні лоти активовані\n\n'
-                                      '🟢 Функція оголошень активована\n'
+                                      '🟢 Платні лоти активовані\n'
                                       '🟢 Платні оголошення активовані\n'
-                                 .format(group=group.chat_name),
-                                 reply_markup=kb_builder.as_markup())
-    # await call.message.edit_text()
+                                 .format(group=chat.title)
+                                 , reply_markup=kb_builder.as_markup())
+
+
+async def paid_chat_function(call: types.CallbackQuery):
+    action_to_boolean = {'activate': 1, 'deactivate': 0}
+    action, chat_id = call.data.split(':')[1:]
+
+
 
 
 async def add_group(call: types.CallbackQuery):
@@ -134,10 +147,8 @@ async def add_group(call: types.CallbackQuery):
 
 async def my_channels_groups(call: types.CallbackQuery, state: FSMContext):
     """Після натискання на кнопку Мої групи/канали"""
-    user_chats = await get_user_chats(call.from_user.id)
-    kb = InlineKeyboardMarkup(
-        inline_keyboard=[[InlineKeyboardButton(text=chat.chat_name, callback_data=chat.chat_id)] for chat in
-                         user_chats])
+    user_chats = await GroupChannelService.get_group_by_owner_telegram_id(call.from_user.id)
+    kb = await generate_chats_kb(user_chats)
     kb.inline_keyboard.extend([[add_group_kb], [back_to_admin_btn]])
     await state.set_state(FSMAdmin.user_chat_id)
     await call.message.edit_text(text=_('Ваші групи.\n'
@@ -150,7 +161,7 @@ async def user_chat_menu(call: types.CallbackQuery, state: FSMContext):
     await call.message.edit_text(text=_('Перевірка підписки...'))
 
     user_chat_id = call.data.split(':')[0]
-    chat_subscription = await get_subscription(user_chat_id)
+    chat_subscription = await GroupSubscriptionPlanService.get_subscription(user_chat_id)
     tokens = {'auction': None, 'ads': None}
     sub_dates = {}
     current_time = time.time()
@@ -163,9 +174,10 @@ async def user_chat_menu(call: types.CallbackQuery, state: FSMContext):
             token_approved = await get_token_approval(chat_subscription, type_=sub_type)
             if token_approved:
                 sub_dates[sub_type] = f'активовано до {datetime.datetime.fromtimestamp(sub_time).strftime("%d.%m.%Y")}'
-                await update_chat_sql(user_chat_id, **{sub_time_attr: 604800 + current_time})
+                await GroupChannelService.update_chat_sql(user_chat_id, **{sub_time_attr: 604800 + current_time})
             else:
-                tokens[sub_type] = await get_token_or_create_new(getattr(chat_subscription, f'{sub_type}_token'), user_chat_id,
+                tokens[sub_type] = await get_token_or_create_new(getattr(chat_subscription, f'{sub_type}_token'),
+                                                                 user_chat_id,
                                                                  f'{sub_type}_token')
                 sub_dates[sub_type] = 'не активовано'
 
@@ -182,7 +194,7 @@ async def user_chat_menu(call: types.CallbackQuery, state: FSMContext):
     )
 
     # await bot.send_message(chat_id=call.from_user.id, text=text, reply_markup=kb)
-    await call.message.edit_text( text=text, reply_markup=kb)
+    await call.message.edit_text(text=text, reply_markup=kb)
 
 
 async def update_bot_subscription_status(call, state: FSMContext):
@@ -191,7 +203,7 @@ async def update_bot_subscription_status(call, state: FSMContext):
     user_chat_id = call.data.split(':')[0]
     payment = await payment_completed(token)
     if payment:
-        await update_chat_sql(user_chat_id, subscription_time=604800 + time.time())
+        await GroupChannelService.update_chat_sql(user_chat_id, subscription_time=604800 + time.time())
         await call.message.edit_text(text=_('✅ Вітаю! Бота успішно активовано на 30 днів.'),
                                      reply_markup=main_kb)
     else:
@@ -234,15 +246,14 @@ async def my_chat_member_handler(my_chat_member: types.ChatMemberUpdated):
     if new_status == ChatMemberStatus.ADMINISTRATOR:
         chat_link = await bot.export_chat_invite_link(chat_id=my_chat_member.chat.id)
         await bot.send_message(chat_id=user_id, text=messages[new_status])
-        await create_group_channel(
+        await GroupChannelService.create_group(
             owner_telegram_id=user_id,
             chat_id=my_chat_member.chat.id,
             chat_type=my_chat_member.chat.type,
             chat_name=chat_title,
             chat_link=chat_link,
         )
-        chat = await get_chat_record(my_chat_member.chat.id)
-        chat_subscription = chat.subscription_plan
+        chat_subscription = await GroupSubscriptionPlanService.get_subscription(my_chat_member.chat.id)
         is_active_free_trial = datetime.datetime.fromtimestamp(chat_subscription.free_trial) > datetime.datetime.now()
 
         last_time_subscribe_timestamp = (
@@ -254,16 +265,16 @@ async def my_chat_member_handler(my_chat_member: types.ChatMemberUpdated):
         if last_time_subscribe_timestamp < time.time():
             await bot.send_message(  # Повідомлення про відсутність активної підписки
                 chat_id=user_id,
-                text=_(
-                    "Ви не маєте активних підписок. Оформіть підписку для групи, щоб отримати доступ до потрібних функцій."),
-                reply_markup=create_subscription_group_buttons_kb(chat.chat_id, is_trial=chat_subscription.free_trial == 0)
+                text=_("Ви не маєте активних підписок. Оформіть підписку "
+                       "для групи, щоб отримати доступ до потрібних функцій."),
+                reply_markup=create_subscription_group_buttons_kb(chat_subscription.group_fk,
+                                                                  is_trial=chat_subscription.free_trial == 0)
             )
             return None
         else:
             await bot.send_message(  # Повідомлення про активну підписку
                 chat_id=user_id,
                 text=_("Зараз у вас активна підписка типу *{subscribe}* до *{last_time_subscribe}*").format(
-                    # Пробна, аукціон, оголошення
                     subscribe=(
                         _('Пробний період') if is_active_free_trial else
                         _('Універсальна') if chat_subscription.auction_paid and chat_subscription.ads_paid else
@@ -331,7 +342,7 @@ class SubscriptionGroupHandler:
         type_subscribe = callback_query.data.split('_')[-3]  # trial, auction, ads, universal
 
         current_time = time.time()
-        chat_subscription = await get_subscription(group_chat_id)
+        chat_subscription = await GroupSubscriptionPlanService.get_subscription(group_chat_id)
         ads_update_duration = max(chat_subscription.ads_sub_time, current_time) + duration_days * 86400
         auction_update_duration = max(chat_subscription.auction_sub_time, current_time) + duration_days * 86400
 
@@ -344,7 +355,7 @@ class SubscriptionGroupHandler:
                 return None
 
             self.create_task_subscribe_is_ending(owner_chat_id, group_chat_id, 'free_trial', duration_days)
-            await update_chat_sql(group_chat_id, free_trial=current_time + duration_days * 86400)
+            await GroupChannelService.update_chat_sql(group_chat_id, free_trial=current_time + duration_days * 86400)
             await callback_query.message.edit_text(
                 text=_("Пробний період активовано на {days} днів.").format(days=duration_days),
                 reply_markup=admin_menu_kb.as_markup()
@@ -354,7 +365,7 @@ class SubscriptionGroupHandler:
             if await self.payment_process(owner_chat_id, group_chat_id, 'auction', duration_days):
                 return None
             self.create_task_subscribe_is_ending(owner_chat_id, group_chat_id, 'auction', duration_days)
-            await update_chat_sql(group_chat_id, auction_sub_time=auction_update_duration, auction_paid=True)
+            await GroupChannelService.update_chat_sql(group_chat_id, auction_sub_time=auction_update_duration, auction_paid=True)
             await callback_query.message.edit_text(
                 text=_("Підписка на аукціон активована на {days} днів.").format(days=duration_days),
                 reply_markup=admin_menu_kb.as_markup()
@@ -364,7 +375,7 @@ class SubscriptionGroupHandler:
             if await self.payment_process(owner_chat_id, group_chat_id, 'ads', duration_days):
                 return None
             self.create_task_subscribe_is_ending(owner_chat_id, group_chat_id, 'ads', duration_days)
-            await update_chat_sql(group_chat_id, ads_sub_time=ads_update_duration, ads_paid=True)
+            await GroupChannelService.update_chat_sql(group_chat_id, ads_sub_time=ads_update_duration, ads_paid=True)
             await callback_query.message.edit_text(
                 text=_("Підписка на оголошення активована на {days} днів.").format(days=duration_days),
                 reply_markup=admin_menu_kb.as_markup()
@@ -379,15 +390,19 @@ async def not_registered_partner(message: types.Message):
                          reply_markup=InlineKeyboardMarkup(inline_keyboard=[[back_to_admin_btn]]))
 
 
-async def monetization(call: types.CallbackQuery):
+async def monetization(call: types.CallbackQuery, state: FSMContext):
     await call.message.edit_text(text=_('Перевірка партнера...'))
     is_partner = await user_is_merchant_api(call.from_user.id)
     if is_partner:
-        await call.message.edit_text(text='Вітаю, ви партнер!',
-                                     reply_markup=InlineKeyboardMarkup(inline_keyboard=[[back_to_admin_btn]]))
+        user_chats = await GroupChannelService.get_group_by_owner_telegram_id(call.from_user.id)
+        kb = await generate_chats_kb(user_chats)
+        kb.inline_keyboard.extend([[back_to_admin_btn]])
+        await call.message.edit_text(text=_('Вітаю, ви партнер!\n'
+                                            '💰 Оберіть групу, у якій бажаєте налаштувати монетизацію'),
+                                     reply_markup=kb)
+        await state.set_state(FSMAdmin.monetize_chat)
     else:
         referral_data = await create_partner_referral_url_and_token(call.from_user.id)
-        # referral_data = await create_partner_referral_url_and_token('12312312')
         reg_url = referral_data.get('url')
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text='Активувати PayPal', url=reg_url)],
@@ -412,7 +427,8 @@ def register_admin_handlers(r: Router):
                               F.data.startswith("subscription_group"))  # Підписка на групу
     r.callback_query.register(add_group, F.data == 'add_group')  # Пункт меню "Підключити групу"
     r.callback_query.register(monetization, F.data == 'monetization')  # Монетизація
-    r.callback_query.register(group_id_settings, FSMAdmin.group_id_settings)  # Налаштування групи
     r.callback_query.register(user_chat_menu, FSMAdmin.user_chat_id)
+    r.callback_query.register(group_id_settings, FSMAdmin.monetize_chat)
     r.callback_query.register(update_bot_subscription_status, F.data.endswith('sub_update'))
     r.message.register(user_access, FSMAdmin.user_id)
+    r.callback_query.register(paid_chat_function, F.data.startswith('paid_'))

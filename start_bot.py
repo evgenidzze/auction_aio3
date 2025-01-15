@@ -3,8 +3,8 @@ import asyncio
 from aiogram.methods import DeleteWebhook
 from aiogram.types import BotCommand
 
+from database.services.base import on_startup
 from utils.create_bot import dp, bot, i18n, scheduler
-from database.db_manage import on_startup
 from handlers.admin import register_admin_handlers
 from handlers.client_handlers import router, register_client_handlers
 from handlers.middleware import Localization, ChangeLanguageMiddleware

@@ -9,6 +9,8 @@ from aiogram.types import InlineKeyboardMarkup, TelegramObject
 # from aiogram.utils.i18n import I18nMiddleware
 from aiogram.utils.i18n import gettext as _, I18nMiddleware
 
+from database.services.group_subscription_plan_service import GroupSubscriptionPlanService
+from database.services.user_service import UserService
 from utils.create_bot import i18n
 from utils.utils import translate_kb
 
@@ -52,11 +54,10 @@ class ChangeLanguageMiddleware(BaseRequestMiddleware):
 
 class Localization(I18nMiddleware):
     async def get_locale(self, event: TelegramObject, data: Dict[str, Any]) -> str:
-        from database.db_manage import get_user
         chat = getattr(event, 'from_user', None)
         if chat:
             user_id = chat.id
-            user = await get_user(user_id)
+            user = await UserService.get_user(user_id)
             if not user:
                 return 'en'
             locale = user.language
@@ -71,7 +72,6 @@ import functools
 from datetime import datetime
 from typing import Callable, List
 from aiogram.types import Message
-from database.db_manage import get_chat_record, get_subscription
 
 
 # TODO: Накладіть цей декоратор на ваші функції, які вимагають підписки. Приклад використання: @subscription_group_required("auction", "ads")
@@ -86,7 +86,7 @@ def subscription_group_required(*subscription_types: List[str]):
     def decorator(func: Callable):
         @functools.wraps(func)
         async def wrapper(message: Message, *args, **kwargs):
-            chat_subscription = await get_subscription(message.chat.id)  # Заміна на вашу функцію отримання групи
+            chat_subscription = await GroupSubscriptionPlanService.get_subscription(message.chat.id)  # Заміна на вашу функцію отримання групи
 
             if "free_trial" in subscription_types:
                 if chat_subscription.free_trial or datetime.utcnow().timestamp() < chat_subscription.free_trial:

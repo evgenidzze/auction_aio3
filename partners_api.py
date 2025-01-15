@@ -31,7 +31,7 @@ def create_partner_referral():
         "Authorization": f"Bearer {get_access_token()}",
     }
     data = {
-        "tracking_id": "98",
+        "tracking_id": "397875584",
         "partner_config_override": {
             "return_url": "https://t.me/Shopogolic2DayBot?start",
             "return_url_description": "Return after onboarding"
@@ -49,11 +49,21 @@ def create_partner_referral():
             }
         }],
         "products": ["EXPRESS_CHECKOUT"],
-        "legal_consents": [{"type": "SHARE_DATA_CONSENT", "granted": True}]
+        "legal_consents": [{"type": "SHARE_DATA_CONSENT", "granted": True}],
+        "scopes": [
+            "profile",
+            "email",
+            "https://uri.paypal.com/services/payments/realtimepayment",
+            "https://uri.paypal.com/services/payments/partnerfee",
+            "https://uri.paypal.com/services/payments/refund",
+            "https://uri.paypal.com/services/payments/payment/authcapture",
+
+        ]
     }
     response = requests.post(url, headers=headers, json=data)
     print(response.json())
     return response.json()
+
 
 
 def create_order():
@@ -69,17 +79,17 @@ def create_order():
             {
                 "amount": {
                     "currency_code": "USD",
-                    "value": "12.00"
+                    "value": "13.00"
                 },
                 "payee": {
-                    "merchant_id": "D8WZS8A3XRS9N"
+                    "merchant_id": "77HX8L3GT2JA2"
                 },
-                "partner_fee_details": {
-                    "amount": {
-                        "currency_code": "USD",
-                        "value": "5.00"
-                    }
-                }
+                # "partner_fee_details": {
+                #     "amount": {
+                #         "currency_code": "USD",
+                #         "value": "5.00"
+                #     }
+                # }
             }
         ],
         "application_context": {
@@ -119,11 +129,10 @@ def register_webhook(domain):
         ]
     }
     response = requests.post(url, headers=headers, json=data)
-    print(response.json())
     return response.json()
 
 
 # create_order()
-# capture('1CL38602VT053493X')
+# capture('8RL015768U298732X')
 # register_webhook('by2x7alhot.loclx.io')
-create_partner_referral()
+# create_partner_referral()

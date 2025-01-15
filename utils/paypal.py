@@ -4,7 +4,6 @@ import time
 import aiohttp
 from aiohttp import BasicAuth
 
-from database.db_manage import get_user
 from utils.config import PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET, PARTNER_ID, OWNER_PARTNER_ID
 from utils.create_bot import job_stores
 
@@ -14,53 +13,10 @@ api_domain = 'https://api-m.sandbox.paypal.com'
 # api_domain = 'https://api-m.paypal.com'
 
 
-# async def get_access_token():
-#     # redis_obj = job_stores.get('default')
-#     # access_token_expires = redis_obj.redis.get('access_token')
-#     # if access_token_expires:
-#     #     access_token_expires = json.loads(access_token_expires)
-#     #     expires_in = access_token_expires.get('expires_in', 0)
-#     # else:
-#     #     expires_in = 0
-#     #
-#     # if expires_in <= time.time():
-#     #     url = f"{api_domain}/v1/oauth2/token"
-#     #     data = {
-#     #         "grant_type": "client_credentials"
-#     #     }
-#     #     headers = {
-#     #         "Content-Type": "application/x-www-form-urlencoded"
-#     #     }
-#     #     async with aiohttp.ClientSession() as session:
-#     #         async with session.post(url, auth=BasicAuth(PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET), headers=headers,
-#     #                                 data=data) as response:
-#     #             data = await response.json()
-#     #             expires_in = data.get('expires_in')
-#     #             access_token = data.get("access_token")
-#     #             redis_obj.redis.set(name='access_token',
-#     #                                 value=json.dumps({'token': access_token, 'expires_in': time.time() + expires_in}))
-#     #             return access_token
-#     # else:
-#     #     access_token = access_token_expires.get('token')
-#     #     return access_token
-#     url = f"{api_domain}/v1/oauth2/token"
-#     data = {
-#         "grant_type": "client_credentials"
-#     }
-#     headers = {
-#         "Content-Type": "application/x-www-form-urlencoded"
-#     }
-#     async with aiohttp.ClientSession() as session:
-#         async with session.post(url, auth=BasicAuth(PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET), headers=headers,
-#                                 data=data) as response:
-#             data = await response.json()
-#             access_token = data.get("access_token")
-#             return access_token
-
-
-async def create_order(usd):
+async def create_order(usd, merchant_id=None):
     """
     Створення замовлення в PayPal на певну суму
+    :param merchant_id: id мерчанта(партнера)
     :param usd: сума в доларах
     :return: id замовлення
     """
@@ -76,11 +32,13 @@ async def create_order(usd):
                     "currency_code": "USD",
                     f"value": f"{usd}.00"
                 },
-
+                "payee": {
+                    "merchant_id": merchant_id
+                }
             }
         ],
         "application_context": {
-            "brand_name": "Your Brand Name",
+            "brand_name": "Auction",
             "landing_page": "BILLING",
             "user_action": "PAY_NOW",
             "return_url": "https://paypal.com"
