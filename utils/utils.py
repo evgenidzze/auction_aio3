@@ -7,12 +7,15 @@ from aiogram.enums import ContentType
 from aiogram.filters import BaseFilter
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.deep_linking import create_start_link
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.utils.media_group import MediaGroupBuilder
 
 import database.models.advertisement
 import database.models.lot
+from database.models.group_subscription_plan import GroupSubscriptionPlan
 from database.services.advertisement_service import AdvertisementService
 from database.services.base import delete_record_by_id
+from database.services.group_channel_service import GroupChannelService
 from database.services.group_subscription_plan_service import GroupSubscriptionPlanService
 from database.services.lot_service import LotService
 from database.services.user_service import UserService
@@ -567,3 +570,91 @@ async def generate_chats_kb(user_chats):
     return InlineKeyboardMarkup(
         inline_keyboard=[[InlineKeyboardButton(text=chat.chat_name, callback_data=chat.chat_id)] for chat in
                          user_chats])
+
+
+# async def create_monetization_kb(subscription: GroupSubscriptionPlan, chat_id):
+#     kb_builder = InlineKeyboardBuilder()
+#     auction_payment_btn = InlineKeyboardButton(text='Активувати платні лоти',
+#                                                callback_data=f'paid_lot:activate:{chat_id}')
+#     ads_payment_btn = InlineKeyboardButton(text='Активувати платні оголошення',
+#                                            callback_data=f'paid_ads:activate:{chat_id}')
+#     if subscription.auction_paid:
+#         auction_payment_btn.text = '❌ Деактивувати платні лоти'
+#         auction_payment_btn.callback_data = f'paid_lot:deactivate:{chat_id}'
+#     if subscription.ads_paid:
+#         ads_payment_btn.text = '❌ Деактивувати платні оголошення'
+#         ads_payment_btn.callback_data = f'paid_ads:deactivate:{chat_id}'
+#
+#     from keyboards.admin_kb import back_to_group_manage_btn
+#     kb_builder.add(auction_payment_btn, ads_payment_btn, back_to_group_manage_btn)
+#     kb_builder.adjust(1)
+#     return kb_builder.as_markup()
+
+
+async def create_monetization_text_and_kb(subscription: GroupSubscriptionPlan, chat_title, chat_id):
+    from keyboards.admin_kb import my_channels_groups_btn, back_to_monetization
+    kb_builder = InlineKeyboardBuilder()
+    text = '💰 Налаштування монетизації:\n\n'
+
+    func_types = {
+        'lot': {
+            'active': subscription.auction_sub_time > time.time(),
+            'paid': subscription.auction_paid,
+            'name': 'лоти',
+            'func_name': 'Аукціон'
+        },
+        'ads': {
+            'active': subscription.ads_sub_time > time.time(),
+            'paid': subscription.ads_paid,
+            'name': 'оголошення',
+            'func_name': 'Оголошення'
+
+        }}
+    for type_, values in func_types.items():
+        active = values.get('active')
+        paid = values.get('paid')
+        name = values.get('name')
+        func_name = values.get('func_name')
+        if active and paid:
+            kb_builder.button(text=f'Деактивувати платні {name}',
+                              callback_data=f'paid_{type_}:deactivate:{chat_id}')
+            text += f'🟢 Платні {name} активовані\n'
+        elif active and not paid:
+            kb_builder.button(text=f'Активувати платні {name}',
+                              callback_data=f'paid_{type_}:activate:{chat_id}')
+            text += f'🔴 Платні {name} не активовані\n'
+
+        else:
+            if my_channels_groups_btn not in kb_builder.buttons:
+                kb_builder.add(my_channels_groups_btn)
+            text += (f'🔒 Функція <b>{func_name}</b> не активована. Активувати функцію можна у меню '
+                     f'<b>⚙️\u00A0Функціонал</b>\n\n')
+    kb_builder.add(back_to_monetization)
+    kb_builder.adjust(1)
+    return text, kb_builder.as_markup()
+
+
+async def check_group_subscriptions_db_and_paypal(group_id, chat_subscription):
+    """
+    Перевіряє чи є підписка у БД.
+    Якщо немає - перевірка оплати підписки.
+    """
+    tokens = {'auction': None, 'ads': None}
+    sub_dates = {}
+    current_time = time.time()
+
+    for sub_type, sub_time_attr in [('auction', 'auction_sub_time'), ('ads', 'ads_sub_time'), ]:
+        sub_time = getattr(chat_subscription, sub_time_attr)
+        if sub_time > current_time:  # чи є підписка у БД
+            sub_dates[sub_type] = f'активовано до {datetime.datetime.fromtimestamp(sub_time).strftime("%d.%m.%Y")}'
+        else:  # запит на перевірку оплати підписки
+            token_approved = await get_token_approval(chat_subscription, type_=sub_type)  # type: ignore
+            if token_approved:
+                sub_dates[sub_type] = f'активовано до {datetime.datetime.fromtimestamp(sub_time).strftime("%d.%m.%Y")}'
+                await GroupChannelService.update_chat_sql(group_id, **{sub_time_attr: 604800 + current_time})
+            else:
+                tokens[sub_type] = await get_token_or_create_new(getattr(chat_subscription, f'{sub_type}_token'),
+                                                                 group_id,
+                                                                 f'{sub_type}_token')
+                sub_dates[sub_type] = 'не активовано'
+    return sub_dates, tokens

@@ -8,11 +8,11 @@ from utils.utils import payment_link_generate
 def create_subscription_group_buttons_kb(chat_id, is_trial=False):
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text='🔑 Пробний період (14 днів)',
-                              callback_data=f'subscription_group_trial_14_{chat_id}')] if is_trial else [],
+                              callback_data=f'subscription_group:free_trial:14:{chat_id}')] if is_trial else [],
         [InlineKeyboardButton(text='🔑 Підписка на аукціон (1 місяць)',
-                              callback_data=f'subscription_group_auction_30_{chat_id}')],
+                              callback_data=f'subscription_group:auction:30:{chat_id}')],
         [InlineKeyboardButton(text='🔑 Підписка на оголошення (1 місяць)',
-                              callback_data=f'subscription_group_ads_30_{chat_id}')],
+                              callback_data=f'subscription_group:ads:30:{chat_id}')],
     ])
 
 
@@ -28,15 +28,16 @@ black_list_btn = InlineKeyboardButton(text='🚫 Чорний список', cal
 payment_on_btn = InlineKeyboardButton(text='Увімкнути оплату', callback_data='on_payment')
 payment_of_btn = InlineKeyboardButton(text='Вимкнути оплату', callback_data='off_payment')
 groups_manage_btn = InlineKeyboardButton(text='Керування групами', callback_data='group_manage')
-add_group_kb = InlineKeyboardButton(text='🔌 Підключити групу', callback_data='add_group')
+add_group_kb = InlineKeyboardButton(text='🔌 Підключення', callback_data='add_group')
 monetization = InlineKeyboardButton(text='💰 Монетизація', callback_data='monetization')
+back_to_monetization = InlineKeyboardButton(text='« Назад', callback_data='monetization')
 
-my_channels_groups = InlineKeyboardButton(text='⚙️ Функціонал груп', callback_data='my_channels_groups')
+my_channels_groups_btn = InlineKeyboardButton(text='⚙️ Функціонал', callback_data='my_channels_groups')
 
-admin_menu_kb.row(my_channels_groups, add_group_kb).row(monetization, black_list_btn)
+admin_menu_kb.row(my_channels_groups_btn, add_group_kb).row(monetization, black_list_btn)
 
 
-async def activate_ad_auction_kb(auction_token, ads_token, user_chat_id, back_btn):
+async def activate_ad_auction_kb(auction_token, ads_token, group_id, back_btn, free_trial):
     builder = InlineKeyboardBuilder()
 
     if auction_token or ads_token:
@@ -46,8 +47,11 @@ async def activate_ad_auction_kb(auction_token, ads_token, user_chat_id, back_bt
         if ads_token:
             ads_payment_url = await payment_link_generate(ads_token)
             builder.button(text='Активувати оголошення', url=ads_payment_url)
+        if free_trial == 0:
+            builder.button(text='🔑 Пробний період (14 днів)',
+                              callback_data=f'subscription_group:free_trial:14:{group_id}')
         builder.button(text=_('🔄 Оновити статус'),
-                       callback_data=f'{user_chat_id}:{auction_token},{ads_token}:sub_update')
-    builder.add(back_to_admin_btn)
+                       callback_data=f'{group_id}:{auction_token},{ads_token}:sub_update')
+    builder.add(back_btn)
     builder.adjust(2)
     return builder.as_markup()
