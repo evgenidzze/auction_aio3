@@ -25,4 +25,5 @@ GALLERY_CHANNEL = os.getenv('GALLERY_CHANNEL')
 PARTNER_ID = os.getenv('PARTNER_ID')
 DEV_ID = os.getenv('DEV_ID')
 OWNER_PARTNER_ID = os.getenv('OWNER_PARTNER_ID')
+USERNAME_BOT = os.getenv('USERNAME_BOT')
 WORKDIR = Path(__file__).parent.parent

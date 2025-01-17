@@ -4,7 +4,7 @@ import time
 import aiohttp
 from aiohttp import BasicAuth
 
-from utils.config import PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET, PARTNER_ID, OWNER_PARTNER_ID
+from utils.config import PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET, PARTNER_ID, OWNER_PARTNER_ID, USERNAME_BOT
 from utils.create_bot import job_stores
 
 api_domain = 'https://api-m.sandbox.paypal.com'
@@ -82,7 +82,7 @@ async def create_partner_referral_url_and_token(user_id) -> dict:
     data = {
         "tracking_id": f"{user_id}",
         "partner_config_override": {
-            "return_url": "https://t.me/Shopogolic2DayBot?start",
+            "return_url": f"https://t.me/{USERNAME_BOT}?start",
             "return_url_description": "Return after onboarding"
         },
         "operations": [{
