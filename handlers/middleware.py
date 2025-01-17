@@ -1,12 +1,11 @@
 import logging
-from typing import Dict, Any, Optional, List, Type
-from aiogram import types, Bot, BaseMiddleware, loggers
+from typing import Dict, Any, Callable, Awaitable
+from aiogram import types, Bot, BaseMiddleware
 from aiogram.client.session.middlewares.base import BaseRequestMiddleware, NextRequestMiddlewareType
 from aiogram.dispatcher.event.bases import CancelHandler
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.methods.base import TelegramType, Response, TelegramMethod
 from aiogram.types import InlineKeyboardMarkup, TelegramObject
-# from aiogram.utils.i18n import I18nMiddleware
 from aiogram.utils.i18n import gettext as _, I18nMiddleware
 
 from database.services.group_subscription_plan_service import GroupSubscriptionPlanService
@@ -15,24 +14,33 @@ from utils.create_bot import i18n
 from utils.utils import translate_kb
 
 
-class HiddenUser(BaseMiddleware):
-    async def on_process_message(self, message: types.Message, data):
-        from keyboards.client_kb import main_kb
-
-        if not message.from_user.username:
-            await message.answer(text=_(
-                "Щоб користуватись ботом потрібно створити або зробити публічним юзернейм у вашому телеграм акаунті."),
-                reply_markup=main_kb)
-            raise CancelHandler()
-
-    async def on_process_callback_query(self, query: types.CallbackQuery, data):
-        from keyboards.client_kb import main_kb
-        if not query.from_user.username:
-            await query.message.answer(
-                text=_(
-                    "Щоб користуватись ботом потрібно створити або зробити публічним юзернейм у вашому телеграм акаунті."),
-                reply_markup=main_kb)
-            raise CancelHandler()
+# class HiddenUser(BaseMiddleware):
+#     async def __call__(
+#             self,
+#             handler: Callable[[TelegramObject, Dict[str, Any]], Awaitable[Any]],
+#             event: TelegramObject,
+#             data: Dict[str, Any],
+#     ) -> Any:
+#         # Можна залишити порожнім або викликати наступний middleware
+#         return await handler(event, data)
+#
+#     async def on_process_message(self, message: types.Message, data):
+#         from keyboards.client_kb import main_kb
+#
+#         if not message.from_user.username:
+#             await message.answer(text=_(
+#                 "Щоб користуватись ботом потрібно створити або зробити публічним юзернейм у вашому телеграм акаунті."),
+#                 reply_markup=main_kb)
+#             raise CancelHandler()
+#
+#     async def on_process_callback_query(self, query: types.CallbackQuery, data):
+#         from keyboards.client_kb import main_kb
+#         if not query.from_user.username:
+#             await query.message.answer(
+#                 text=_(
+#                     "Щоб користуватись ботом потрібно створити або зробити публічним юзернейм у вашому телеграм акаунті."),
+#                 reply_markup=main_kb)
+#             raise CancelHandler()
 
 
 class ChangeLanguageMiddleware(BaseRequestMiddleware):
@@ -66,7 +74,6 @@ class Localization(I18nMiddleware):
         return locale
 
 
-
 # TODO: Можливо це винести в окремий файл?
 import functools
 from datetime import datetime
@@ -83,10 +90,12 @@ def subscription_group_required(*subscription_types: List[str]):
     :param subscription_types: Список типів підписок, які вимагаються для доступу до функції.
     Доступні значення: "free_trial", "auction", "ads".
     """
+
     def decorator(func: Callable):
         @functools.wraps(func)
         async def wrapper(message: Message, *args, **kwargs):
-            chat_subscription = await GroupSubscriptionPlanService.get_subscription(message.chat.id)  # Заміна на вашу функцію отримання групи
+            chat_subscription = await GroupSubscriptionPlanService.get_subscription(
+                message.chat.id)  # Заміна на вашу функцію отримання групи
 
             if "free_trial" in subscription_types:
                 if chat_subscription.free_trial or datetime.utcnow().timestamp() < chat_subscription.free_trial:
@@ -108,4 +117,3 @@ def subscription_group_required(*subscription_types: List[str]):
         return wrapper
 
     return decorator
-

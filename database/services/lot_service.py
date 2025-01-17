@@ -92,7 +92,8 @@ class LotService:
                 currency=fsm_data.get('currency'),
                 city=fsm_data.get('city'),
                 last_bid=fsm_data.get('price'),
-                photos_link=fsm_data.get('photos_link')
+                photos_link=fsm_data.get('photos_link'),
+                group_id=fsm_data.get('lot_group_id')
 
             )
             session.add(new_lot)

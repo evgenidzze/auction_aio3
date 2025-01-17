@@ -22,11 +22,10 @@ from database.services.group_channel_service import GroupChannelService
 from database.services.lot_service import LotService
 from database.services.user_service import UserService
 from utils.aiogram_media_group import media_group_handler
+from utils.config import DEV_ID
 
 from utils.create_bot import scheduler, _, i18n, bot, job_stores
 import keyboards.client_kb as client_kb
-
-from utils.config import AUCTION_CHANNEL, ADVERT_CHANNEL
 from utils.paypal import get_order_status, create_order
 import utils.utils
 
@@ -41,6 +40,7 @@ router = Router()
 
 
 class FSMClient(StatesGroup):
+    lot_group_id = State()
     user_chat_id = State()
     repost_count = State()
     repost_count_answer = State()
@@ -177,7 +177,17 @@ async def other_channels_groups(call: types.CallbackQuery, **kwargs):
 ########################################################################################################################
 
 @callback_query(F.data == 'create_auction', utils.utils.IsMessageType(message_type=[ContentType.TEXT]))
+async def lot_group(call: types.CallbackQuery, state: FSMContext, **kwargs):
+    chats = await GroupChannelService.get_all_groups()  # замінити на групи користувача
+    kb = await utils.utils.generate_chats_kb(chats)
+    kb.inline_keyboard.extend([[client_kb.reset_to_auction_menu_btn]])
+    await state.set_state(FSMClient.lot_group_id)
+    await call.message.edit_text(text=_('У якій групі бажаєте опублікувати лот?'), reply_markup=kb)
+
+
+@callback_query(FSMClient.lot_group_id)
 async def ask_city(call: types.CallbackQuery, state: FSMContext, **kwargs):
+    await state.update_data(lot_group_id=call.data)
     user = await UserService.get_user(call.from_user.id)
     if user.is_blocked:
         await bot.send_message(chat_id=call.from_user.id, text=_('Вас було заблоковано за порушення правил.'))
@@ -294,22 +304,18 @@ async def lot_publish(message: types.CallbackQuery, state: FSMContext, **kwargs)
     currency: str = fsm_data.get('currency')
     city: str = fsm_data.get('city')
     price_steps: str = fsm_data.get('price_steps')
-    group_id = fsm_data.get('adv_group_id')
-    channel = await bot.get_chat(AUCTION_CHANNEL)
-    if channel:
-        new_lot_id = await LotService.create_lot(fsm_data, message.from_user.id)
-        group_data = await GroupChannelService.get_group_record(group_id)
-        await utils.utils.send_post(message.from_user.id, group_data.owner_telegram_id, photo_id, video_id, description,
-                                    start_price,
-                                    price_steps, currency=currency, city=city, lot_id=new_lot_id, moder_review=True,
-                                    videos=fsm_data.get('videos_id'), photos=fsm_data.get('photos_id'))
-        await message.message.edit_text(
-            text=_("✅ Лот відправлено на модерацію, незабаром він з'явиться у каналі <b><a href='{invite_link}'>"
-                   "{username}</a></b>.").format(invite_link=channel.invite_link, username=channel.username),
-            reply_markup=client_kb.main_kb)
-    else:
-        await message.message.edit_text(
-            text=_('Бот не підключений до каналу. Щоб бот функціонував, потрібно надати йому права адміністратора.'))
+    group_id = fsm_data.get('lot_group_id')
+    group_chat = await bot.get_chat(group_id)
+    new_lot_id = await LotService.create_lot(fsm_data, message.from_user.id)
+    group_data = await GroupChannelService.get_group_record(group_id)
+    await utils.utils.send_post(message.from_user.id, group_data.owner_telegram_id, photo_id, video_id, description,
+                                start_price,
+                                price_steps, currency=currency, city=city, lot_id=new_lot_id, moder_review=True,
+                                videos=fsm_data.get('videos_id'), photos=fsm_data.get('photos_id'))
+    await message.message.edit_text(
+        text=_("✅ Лот відправлено на модерацію, незабаром він з'явиться у каналі <b><a href='{invite_link}'>"
+               "{username}</a></b>.").format(invite_link=group_chat.invite_link, username=group_chat.title),
+        reply_markup=client_kb.main_kb)
 
 
 ########################################################################################################################
@@ -340,6 +346,7 @@ async def group_for_adv(call: types.CallbackQuery, state: FSMContext, **kwargs):
     if is_subscribed or (result and result.decode('utf-8') != 'on'):
         chats = await GroupChannelService.get_all_groups()
         kb = await utils.utils.generate_chats_kb(chats)
+        kb.inline_keyboard.extend([[client_kb.back_to_ad_menu_btn]])
         await state.set_state(FSMClient.adv_group_id)
         await call.message.edit_text(text='Оберіть групу в якій хочете виставити оголошення:', reply_markup=kb)
     elif await utils.utils.user_have_approved_adv_token(call.from_user.id):
@@ -430,7 +437,7 @@ async def adv_publish(message, state, **kwargs):
                                   advert_id=new_adv_id)
     await message.message.edit_text(
         text=_("✅ Оголошення відправлено не модерацію, незабаром воно з'явиться у каналі <b><a href='{invite_link}'>"
-               "{username}</a></b>.").format(invite_link=channel.invite_link, username=channel.username),
+               "{username}</a></b>.").format(invite_link=channel.invite_link, username=channel.title),
         reply_markup=client_kb.main_kb)
 
 
@@ -444,10 +451,12 @@ async def make_bid(message: types.CallbackQuery, **kwargs):
         owner_id = lot.owner_telegram_id
         last_bidder_id = lot.bidder_telegram_id
         bid_count = lot.bid_count
-        user = await UserService.get_user(owner_id)
         currency = lot.currency
+        group_id = lot.group_id
+
+        user = await UserService.get_user(owner_id)
         anti_sniper_time: datetime.time = user.anti_sniper
-        if str(message.from_user.id) == lot.owner_telegram_id and message.from_user.id != 397875584:
+        if str(message.from_user.id) == lot.owner_telegram_id and message.from_user.id != DEV_ID:
             await message.answer(text=_('❌ На свій лот не можна робити ставку.'))
             return
         job = scheduler.get_job(f'lot_{lot_id}')
@@ -465,7 +474,7 @@ async def make_bid(message: types.CallbackQuery, **kwargs):
             lot_post = message.message
             caption = await utils.utils.new_bid_caption(lot_post.caption, message.from_user.first_name, price, currency,
                                                         owner_locale=user.language, bid_count=bid_count + 1)
-            await bot.edit_message_caption(chat_id=AUCTION_CHANNEL, message_id=lot_post.message_id, caption=caption,
+            await bot.edit_message_caption(chat_id=group_id, message_id=lot_post.message_id, caption=caption,
                                            reply_markup=lot_post.reply_markup)
             await bot.send_message(chat_id=owner_id,
                                    text=_(
@@ -488,7 +497,6 @@ async def make_bid(message: types.CallbackQuery, **kwargs):
         await message.answer(text=_('❌ Аукціон закінчено'))
 
 
-@callback_query(F.data == 'help')
 @callback_query(F.data == 'help')
 async def help_(call: types.CallbackQuery, **kwargs):
     await call.message.edit_text(text=_("По всім запитанням @Oleksandr_Polis\n\n"
@@ -689,7 +697,7 @@ async def delete_ad(call: types.CallbackQuery, state: FSMContext, **kwargs):
     ad = await AdvertisementService.get_adv(ad_id)
     if ad.post_link:
         try:
-            await bot.delete_message(chat_id=ADVERT_CHANNEL, message_id=ad.message_id)
+            await bot.delete_message(chat_id=ad.group_id, message_id=ad.message_id)
         except:
             pass
 
@@ -750,27 +758,28 @@ async def accept_lot(call: types.CallbackQuery, state: FSMContext, **kwargs):
         currency = lot.currency
         owner_id = lot.owner_telegram_id
         photos_link = lot.photos_link
+        group_id = lot.group_id
         if not scheduler.get_job(f'lot_{new_lot_id}'):
-            msg = await utils.utils.send_post(owner_id, AUCTION_CHANNEL, photo_id, video_id, description, start_price,
+            msg = await utils.utils.send_post(owner_id, group_id, photo_id, video_id, description, start_price,
                                               price_steps, currency=currency, city=city, lot_id=new_lot_id,
                                               moder_review=None,
                                               photos_link=photos_link)
             await LotService.update_lot_sql(lot_id=new_lot_id, lot_link=msg.get_url(), message_id=msg.message_id,
-                                           approved=1)
+                                            approved=1)
             scheduler.add_job(utils.utils.lot_ending, trigger='interval', id=f'lot_{new_lot_id}',
                               hours=lot.lot_time_living,
                               kwargs={'job_id': new_lot_id, 'msg_id': msg.message_id})
-            channel = await bot.get_chat(chat_id=AUCTION_CHANNEL)
+            channel = await bot.get_chat(chat_id=group_id)
             await call.answer()
             if len(description) > 20:
                 description = f'{description[:20]}...'
             text = _("✅ Готово!\n"
                      "Лот <b><a href='{msg_url}'>{desc}...</a></b> "
-                     "опубліковано в каналі <b><a href='{channel_link}'>"
+                     "опубліковано в <b><a href='{channel_link}'>"
                      "{channel_name}</a></b>").format(msg_url=msg.get_url(),
                                                       desc=description,
                                                       channel_link=channel.invite_link,
-                                                      channel_name=channel.username)
+                                                      channel_name=channel.title)
             await call.message.edit_caption(caption=text, reply_markup=client_kb.main_kb)
             await bot.send_message(chat_id=owner_id, text=text, reply_markup=client_kb.main_kb)
         else:
@@ -806,8 +815,9 @@ async def accept_adv(call: types.CallbackQuery, state: FSMContext, **kwargs):
                 logging.info(err)
                 await bot.send_message(chat_id=call.from_user.id, text=str(err))
                 return
-            await AdvertisementService.update_adv_sql(adv_id=new_adv_id, post_link=msg.get_url(), message_id=msg.message_id,
-                                           approved=1)
+            await AdvertisementService.update_adv_sql(adv_id=new_adv_id, post_link=msg.get_url(),
+                                                      message_id=msg.message_id,
+                                                      approved=1)
             scheduler.add_job(utils.utils.adv_ending, trigger='interval', id=f'adv_{new_adv_id}', hours=168,
                               kwargs={'job_id': new_adv_id})
             now = datetime.datetime.now()
@@ -832,7 +842,7 @@ async def accept_adv(call: types.CallbackQuery, state: FSMContext, **kwargs):
                      "{channel_name}</a></b>").format(msg_url=msg.get_url(),
                                                       desc=description[:15],
                                                       channel_link=channel.invite_link,
-                                                      channel_name=channel.username)
+                                                      channel_name=channel.title)
             await call.message.edit_caption(caption=text, reply_markup=client_kb.main_kb)
             await bot.send_message(chat_id=owner_id, text=text, reply_markup=client_kb.main_kb)
         else:
@@ -897,7 +907,7 @@ async def lot_deletion(call: types.CallbackQuery):
             await delete_record_by_id(lot_id, database.models.lot.Lot)
             try:
                 scheduler.remove_job(f'lot_{lot_id}')
-                await bot.delete_message(chat_id=AUCTION_CHANNEL, message_id=lot.message_id)
+                await bot.delete_message(chat_id=lot.group_id, message_id=lot.message_id)
             except:
                 ...
         elif action == 'decline':
@@ -1037,7 +1047,7 @@ async def edit_new_text(call: types.CallbackQuery, state: FSMContext, **kwargs):
                         bidder_name = await bot.get_chat(lot.bidder_telegram_id)
                         caption = await utils.utils.new_bid_caption(caption, bidder_name.first_name, lot.last_bid,
                                                                     lot.currency, user.language, lot.bid_count)
-                    await bot.edit_message_caption(chat_id=AUCTION_CHANNEL, message_id=lot.message_id,
+                    await bot.edit_message_caption(chat_id=lot.group_id, message_id=lot.message_id,
                                                    caption=caption.format(
                                                        description=lot.new_text, city=lot.city,
                                                        start_price=lot.start_price, currency=lot.currency,
@@ -1056,6 +1066,7 @@ async def edit_new_text(call: types.CallbackQuery, state: FSMContext, **kwargs):
                 return
         elif obj_type == 'adv':
             ad = await AdvertisementService.get_adv(obj_id)
+
             if ad.new_text:
                 user = await UserService.get_user(ad.owner_telegram_id)
                 user_tg = await bot.get_chat(user.telegram_id)
@@ -1069,7 +1080,7 @@ async def edit_new_text(call: types.CallbackQuery, state: FSMContext, **kwargs):
                             "🏙 <b>Місто:</b> {city}\n", locale=user.language).format(description=ad.new_text,
                                                                                      city=ad.city)
                 try:
-                    await bot.edit_message_caption(chat_id=ADVERT_CHANNEL, message_id=ad.message_id, caption=caption,
+                    await bot.edit_message_caption(chat_id=ad.group_id, message_id=ad.message_id, caption=caption,
                                                    reply_markup=kb)
                 except Exception:
                     await call.answer(text='Запит вже оброблено.')

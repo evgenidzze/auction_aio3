@@ -7,7 +7,7 @@ from aiogram.enums import ChatMemberStatus
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Update
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from database.services.group_channel_service import GroupChannelService
@@ -16,9 +16,9 @@ from database.services.user_service import UserService
 from handlers.client_handlers import router
 from utils.create_bot import job_stores, bot, _
 
-from keyboards.admin_kb import reject_to_admin_btn, back_to_admin_btn, back_to_group_manage_btn, \
+from keyboards.admin_kb import reject_to_admin_btn, back_to_admin_btn, \
     unblock_user_btn, block_user_btn, back_my_channels_groups, \
-    activate_ad_auction_kb, admin_menu_kb, create_subscription_group_buttons_kb, add_group_kb
+    activate_ad_auction_kb, admin_menu_kb, add_group_kb
 from keyboards.client_kb import main_kb
 from utils.paypal import create_partner_referral_url_and_token, user_is_merchant_api
 from utils.utils import payment_completed, \
@@ -105,18 +105,26 @@ async def payment_tumbler(call: types.CallbackQuery, state: FSMContext):
     return
 
 
-async def group_id_settings(call: types.CallbackQuery, state: FSMContext):
+async def group_id_settings(call: types.CallbackQuery, state: FSMContext, chat_id=None):
     await state.set_state(None)
-    chat_id = call.data
+    if not chat_id:
+        chat_id = call.data
+
     chat = await bot.get_chat(chat_id=chat_id)
     subscription = await GroupSubscriptionPlanService.get_subscription(chat_id)
     text, kb = await create_monetization_text_and_kb(subscription, chat.title, chat_id)
     await call.message.edit_text(text=text, reply_markup=kb)
 
 
-async def paid_chat_function(call: types.CallbackQuery):
+async def paid_chat_function(call: types.CallbackQuery, state: FSMContext):
     action_to_boolean = {'activate': 1, 'deactivate': 0}
-    action, chat_id = call.data.split(':')[1:]
+    func_type: Literal['lot', 'ads']
+    func_type_to_db_column_name = {'lot': 'auction_paid', 'ads': 'ads_paid'}
+
+    func_type, action, group_id = call.data.split(':')[1:]
+    kwargs = {func_type_to_db_column_name[func_type]: action_to_boolean[action]}
+    await GroupSubscriptionPlanService.update_group_subscription_sql(chat_id=group_id, **kwargs)
+    await group_id_settings(call, state, chat_id=group_id)
 
 
 async def add_group(call: types.CallbackQuery):
@@ -142,7 +150,6 @@ async def user_chat_menu(call: types.CallbackQuery):
     await call.message.edit_text(text=_('Перевірка підписки...'))
 
     group_id = call.data.split(':')[0]
-    print(group_id)
     chat_subscription = await GroupSubscriptionPlanService.get_subscription(group_id)
     if chat_subscription.free_trial > time.time():
         days = (datetime.datetime.fromtimestamp(chat_subscription.free_trial) - datetime.datetime.now()).days
@@ -220,7 +227,8 @@ async def my_chat_member_handler(my_chat_member: types.ChatMemberUpdated):
     if new_status == ChatMemberStatus.ADMINISTRATOR:
         check_sub_msg = await bot.send_message(chat_id=user_id, text=_('Перевірка підписки...'))
         await user_chat_menu(types.CallbackQuery(id='generated_callback_query', from_user=my_chat_member.from_user,
-                                                 chat_instance=str(my_chat_member.chat.id), data=f'{my_chat_member.chat.id}', message=check_sub_msg))
+                                                 chat_instance=str(my_chat_member.chat.id),
+                                                 data=f'{my_chat_member.chat.id}', message=check_sub_msg))
         # chat_link = await bot.export_chat_invite_link(chat_id=my_chat_member.chat.id)
         # await bot.send_message(chat_id=user_id, text=messages[new_status])
         # check_sub_msg = await bot.send_message(chat_id=user_id, text=_('Перевірка підписки...'))
@@ -417,4 +425,4 @@ def register_admin_handlers(r: Router):
     r.callback_query.register(group_id_settings, FSMAdmin.monetize_chat)
     r.callback_query.register(update_bot_subscription_status, F.data.endswith('sub_update'))
     r.message.register(user_access, FSMAdmin.user_id)
-    r.callback_query.register(paid_chat_function, F.data.startswith('paid_'))
+    r.callback_query.register(paid_chat_function, F.data.startswith('paid:'))

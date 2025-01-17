@@ -21,7 +21,7 @@ from database.services.lot_service import LotService
 from database.services.user_service import UserService
 from utils.create_bot import bot, scheduler, job_stores
 from keyboards.client_kb import decline_lot_btn, accept_lot_btn, back_to_main_btn, main_kb
-from utils.config import ADVERT_CHANNEL, GALLERY_CHANNEL
+from utils.config import GALLERY_CHANNEL
 from utils.paypal import create_order, get_order_status, capture
 from utils.create_bot import _
 
@@ -314,100 +314,10 @@ async def translate_kb(kb: InlineKeyboardMarkup, locale, owner_id, no_spaces=Fal
     if kb:
         for row in kb.inline_keyboard:
             for button in row:
-                # if any(word in button.text.split() for word in ('Повідомлення', 'Messages')):
-                #     button.text = _(button.text.split('(')[0].rstrip(), locale=locale)
-                # else:
                 button.text = _(button.text, locale=locale)
-                # if any(text in button.text for text in
-                #        ('❔ Запитання', "❔ Questions", '💬 Answers', "💬 Відповіді")):
-                #     if any(text in button.text for text in ('Повідомлення', 'Messages')):
-                #         questions_count = await messages_count(owner_id, 'question')
-                #         answers_count = await messages_count(owner_id, 'answer')
-                #         mes_count = questions_count + answers_count
-                #     elif any(text in button.text for text in ('Запитання', "Questions")):
-                #         mes_count = await messages_count(owner_id, 'question')
-                #     elif any(text in button.text for text in ('Answers', "Відповіді")):
-                #         mes_count = await messages_count(owner_id, 'answer')
-                #     split_text = button.text.split(' ')
-                #     if len(split_text) == 3:
-                #         split_text[-1] = '({mes_count})'.format(mes_count=mes_count)
-                #     else:
-                #         split_text.append('({mes_count})'.format(mes_count=mes_count))
-                #     button.text = ' '.join(split_text)
         return kb
 
 
-# async def create_photo_album(html, tg):
-#     response = tg.create_page(
-#         f'Photos',
-#         html_content=html)
-#     return 'http://telegra.ph/{}'.format(response['path'])
-
-
-# async def create_question_kb(questions: List[Question], owner_id):
-#     kb = InlineKeyboardMarkup(inline_keyboard=[])
-#     for q in questions:
-#         lot = await get_lot(q.lot_id)
-#         kb.inline_keyboard.extend(
-#             [[InlineKeyboardButton(text=f'{lot.description[:20]} - {q.question}', callback_data=q.id)]])
-#     return kb
-
-
-# async def create_answers_kb(answers: List[Answer], recipient_id):
-#     kb = InlineKeyboardMarkup(inline_keyboard=[])
-#     for a in answers:
-#         lot = await get_lot(a.lot_id)
-#         kb.inline_keyboard.extend(
-#             [[InlineKeyboardButton(text=f'{lot.description[:20]} - {a.answer}', callback_data=a.id)]])
-#     return kb
-
-
-# async def phone_in_text(text):
-#     text = re.sub(r'[^\w]', ' ', text)
-#     text = text.replace(' ', '')
-#     if any(word in text for word in (
-#             'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'zero', 'один', "два", "три",
-#             "чотири", "пять", "шість", "сім", "вісім", "девять", "ноль", "нуль")):
-#         return True
-#     validate_phone_number_pattern = "^\\+?\\d{1,4}?[-.\\s]?\\(?\\d{1,3}?\\)?[-.\\s]?\\d{1,4}[-.\\s]?\\d{1,4}[-.\\s]?\\d{1,9}$"
-#     for word in text.split(' '):
-#         if re.match(validate_phone_number_pattern, word):
-#             return True
-#     return False
-
-
-# async def levenshtein_distance(word1, word2):
-#     dp = [[0] * (len(word2) + 1) for _ in range(len(word1) + 1)]
-#     for i in range(len(word1) + 1):
-#         dp[i][0] = i
-#     for j in range(len(word2) + 1):
-#         dp[0][j] = j
-#     for i in range(1, len(word1) + 1):
-#         for j in range(1, len(word2) + 1):
-#             cost = 0 if word1[i - 1] == word2[j - 1] else 1
-#             dp[i][j] = min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost)
-#     return dp[len(word1)][len(word2)]
-
-
-# async def similarity(word1, word2):
-#     max_len = max(len(word1), len(word2))
-#     if max_len == 0:
-#         return 0
-#     return (1 - await levenshtein_distance(word1, word2) / max_len) * 100
-
-
-# async def username_in_text(text, username):
-#     text = re.sub(r'[^\w]', ' ', text)
-#     merged_text = text.replace(' ', '')
-#     if username[:5] in merged_text:
-#         return True
-#     elif 'http' in merged_text:
-#         return True
-#     for word in text.split(' '):
-#         similarity_percent = await similarity(word, username)
-#         if similarity_percent > 60:
-#             return True
-#     return False
 
 
 async def gather_media_from_messages(messages: List[types.Message], state) -> Tuple[bool, bool] | Tuple[
@@ -424,46 +334,6 @@ async def gather_media_from_messages(messages: List[types.Message], state) -> Tu
             return False, False
     return videos_id, photos_id
 
-
-# async def save_sent_media(messages, photos_id, videos_id, state):
-#     html = ''
-#     if isinstance(messages[0], types.Message) and 'media' in await state.get_state():
-#         async with aiohttp.ClientSession() as session:
-#             if photos_id:
-#                 for photo_id in photos_id:
-#                     # Отримуємо файл з Telegram
-#                     file = await bot.get_file(photo_id)
-#                     file_path = file.file_path
-#                     file_url = f"https://api.telegram.org/file/bot{bot.token}/{file_path}"
-#
-#                     async with session.get(file_url) as response:
-#                         if response.status != 200:
-#                             continue  # Пропускаємо, якщо не вдалося отримати файл
-#
-#                         temp_filename = f"/tmp/{photo_id}.jpg"
-#                         # Зберігаємо файл на диск
-#                         async with aiofiles.open(temp_filename, 'wb') as f:
-#                             await f.write(await response.read())
-#                     async with aiofiles.open(temp_filename, 'rb') as f:
-#                         form = aiohttp.FormData()
-#                         form.add_field(
-#                             name='file',
-#                             value=f,
-#                             filename=os.path.abspath('utils/q.jpg'),
-#                             content_type='image/jpeg'
-#                         )
-#                         async with session.post('https://telegra.ph/upload', data=form) as response:
-#                             if response.status == 200:
-#                                 telegraph_url = await response.json()
-#                                 if telegraph_url and 'src' in telegraph_url[0]:
-#                                     full_url = f"https://telegra.ph{telegraph_url[0]['src']}"
-#                                     html += f"<img src='{full_url}'/><br>"
-#
-#                     await state.update_data(photo_id=photo_id)
-#
-#             if videos_id:
-#                 await state.update_data(video_id=videos_id[0])
-#     return html
 
 
 async def adv_sub_time_remain(user_id):
@@ -510,20 +380,21 @@ async def payment_kb(token, activate_btn_text, callback_data, back_btn: InlineKe
 
 async def repost_adv(job_id, username):
     logging.info(f'start repost adv job_id={job_id}')
-    adv = await AdvertisementService.get_adv(job_id)
-    chat = await bot.get_chat(chat_id=ADVERT_CHANNEL)
-    if adv and chat:
+    ad = await AdvertisementService.get_adv(job_id)
+    chat = await bot.get_chat(chat_id=ad.group_id)
+    if ad and chat:
         kb = InlineKeyboardMarkup(inline_keyboard=[])
         kb.inline_keyboard.extend([[InlineKeyboardButton(text='⏳', callback_data=f'time_left_adv_{job_id}')]])
         kb.inline_keyboard.extend([[InlineKeyboardButton(text=_('💬 Задати питання автору'),
                                                          url=f'https://t.me/{username}')]])
-        new_message = await bot.copy_message(chat_id=ADVERT_CHANNEL, from_chat_id=ADVERT_CHANNEL,
-                                             message_id=adv.message_id, reply_markup=kb)
-        await bot.delete_message(chat_id=ADVERT_CHANNEL, message_id=adv.message_id)
-        post_link = f'https://t.me/{chat.username}/{new_message.message_id}'
+        new_message = await bot.copy_message(chat_id=ad.group_id, from_chat_id=ad.group_id,
+                                             message_id=ad.message_id, reply_markup=kb)
+        await bot.delete_message(chat_id=ad.group_id, message_id=ad.message_id)
+
+        post_link = f"https://t.me/c/{ad.post_link.split('/')[-2]}/{new_message.message_id}"
         await AdvertisementService.update_adv_sql(job_id, message_id=new_message.message_id, post_link=post_link)
     else:
-        logging.info(f'adv where id={job_id} doesnt exist or chat {ADVERT_CHANNEL}')
+        logging.info(f'adv where id={job_id} doesnt exist or chat {ad.group_id}')
 
 
 async def is_media_count_allowed(photos_id, videos_id, messages, reset_to_auction_menu_kb):
@@ -617,11 +488,11 @@ async def create_monetization_text_and_kb(subscription: GroupSubscriptionPlan, c
         func_name = values.get('func_name')
         if active and paid:
             kb_builder.button(text=f'Деактивувати платні {name}',
-                              callback_data=f'paid_{type_}:deactivate:{chat_id}')
+                              callback_data=f'paid:{type_}:deactivate:{chat_id}')
             text += f'🟢 Платні {name} активовані\n'
         elif active and not paid:
             kb_builder.button(text=f'Активувати платні {name}',
-                              callback_data=f'paid_{type_}:activate:{chat_id}')
+                              callback_data=f'paid:{type_}:activate:{chat_id}')
             text += f'🔴 Платні {name} не активовані\n'
 
         else:

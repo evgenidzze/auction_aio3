@@ -1,7 +1,5 @@
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
-# from create_bot import _
-
 eng_btn = InlineKeyboardButton(text='🇬🇧 English', callback_data='en')
 ua_btn = InlineKeyboardButton(text='🇺🇦 Українська', callback_data='uk')
 language_kb = InlineKeyboardMarkup(inline_keyboard=[[ua_btn], [eng_btn]])

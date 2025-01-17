@@ -11,8 +11,9 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from sqlalchemy.future import select
 from datetime import datetime
 from sqlalchemy.orm import selectinload
+
+from database.services.base import engine
 from utils.config import BOT_TOKEN, DEV_ID
-from database.db_manage import engine
 from database.models.channel_group import ChannelGroup
 from database.models.group_subscription_plan import GroupSubscriptionPlan
 from keyboards.admin_kb import create_subscription_group_buttons_kb
