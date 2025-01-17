@@ -21,8 +21,8 @@ from keyboards.admin_kb import reject_to_admin_btn, back_to_admin_btn, back_to_g
     activate_ad_auction_kb, admin_menu_kb, create_subscription_group_buttons_kb, add_group_kb
 from keyboards.client_kb import main_kb
 from utils.paypal import create_partner_referral_url_and_token, user_is_merchant_api
-from utils.utils import  payment_completed, \
-     generate_chats_kb, create_monetization_text_and_kb, check_group_subscriptions_db_and_paypal
+from utils.utils import payment_completed, \
+    generate_chats_kb, create_monetization_text_and_kb, check_group_subscriptions_db_and_paypal
 
 from utils.create_bot import scheduler
 from apscheduler.jobstores.base import JobLookupError
@@ -137,11 +137,12 @@ async def my_channels_groups(call: types.CallbackQuery, state: FSMContext):
                                  reply_markup=kb)
 
 
-async def user_chat_menu(call: types.CallbackQuery, state: FSMContext):
+async def user_chat_menu(call: types.CallbackQuery):
     """Після натискання на кнопку Функціонал груп та вибору групи"""
     await call.message.edit_text(text=_('Перевірка підписки...'))
 
     group_id = call.data.split(':')[0]
+    print(group_id)
     chat_subscription = await GroupSubscriptionPlanService.get_subscription(group_id)
     if chat_subscription.free_trial > time.time():
         days = (datetime.datetime.fromtimestamp(chat_subscription.free_trial) - datetime.datetime.now()).days
@@ -180,7 +181,7 @@ async def update_bot_subscription_status(call, state: FSMContext):
         await call.message.edit_text(text=_('✅ Вітаю! Бота успішно активовано на 30 днів.'),
                                      reply_markup=main_kb)
     else:
-        await user_chat_menu(call, state)
+        await user_chat_menu(call)
         return
 
 
@@ -217,48 +218,54 @@ async def my_chat_member_handler(my_chat_member: types.ChatMemberUpdated):
     }
 
     if new_status == ChatMemberStatus.ADMINISTRATOR:
-        chat_link = await bot.export_chat_invite_link(chat_id=my_chat_member.chat.id)
-        await bot.send_message(chat_id=user_id, text=messages[new_status])
-        await GroupChannelService.create_group(
-            owner_telegram_id=user_id,
-            chat_id=my_chat_member.chat.id,
-            chat_type=my_chat_member.chat.type,
-            chat_name=chat_title,
-            chat_link=chat_link,
-        )
-        chat_subscription = await GroupSubscriptionPlanService.get_subscription(my_chat_member.chat.id)
-        is_active_free_trial = datetime.datetime.fromtimestamp(chat_subscription.free_trial) > datetime.datetime.now()
-
-        last_time_subscribe_timestamp = (
-            chat_subscription.free_trial if is_active_free_trial else
-            chat_subscription.auction_sub_time if chat_subscription.auction_paid else
-            chat_subscription.ads_sub_time if chat_subscription.ads_paid else 0
-        )
-
-        if last_time_subscribe_timestamp < time.time():
-            await bot.send_message(  # Повідомлення про відсутність активної підписки
-                chat_id=user_id,
-                text=_("Ви не маєте активних підписок. Оформіть підписку "
-                       "для групи, щоб отримати доступ до потрібних функцій."),
-                reply_markup=create_subscription_group_buttons_kb(chat_subscription.group_fk,
-                                                                  is_trial=chat_subscription.free_trial == 0)
-            )
-            return None
-        else:
-            await bot.send_message(  # Повідомлення про активну підписку
-                chat_id=user_id,
-                text=_("Зараз у вас активна підписка типу *{subscribe}* до *{last_time_subscribe}*").format(
-                    subscribe=(
-                        _('Пробний період') if is_active_free_trial else
-                        _('Універсальна') if chat_subscription.auction_paid and chat_subscription.ads_paid else
-                        _('Аукціон') if chat_subscription.auction_paid else _('Оголошення')
-                    ),
-                    last_time_subscribe=datetime.datetime.fromtimestamp(last_time_subscribe_timestamp).strftime(
-                        "%d.%m.%Y"),
-                ),
-                reply_markup=admin_menu_kb.as_markup()
-            )
-            return None
+        check_sub_msg = await bot.send_message(chat_id=user_id, text=_('Перевірка підписки...'))
+        await user_chat_menu(types.CallbackQuery(id='generated_callback_query', from_user=my_chat_member.from_user,
+                                                 chat_instance=str(my_chat_member.chat.id), data=f'{my_chat_member.chat.id}', message=check_sub_msg))
+        # chat_link = await bot.export_chat_invite_link(chat_id=my_chat_member.chat.id)
+        # await bot.send_message(chat_id=user_id, text=messages[new_status])
+        # check_sub_msg = await bot.send_message(chat_id=user_id, text=_('Перевірка підписки...'))
+        # await GroupChannelService.create_group(
+        #     owner_telegram_id=user_id,
+        #     chat_id=my_chat_member.chat.id,
+        #     chat_type=my_chat_member.chat.type,
+        #     chat_name=chat_title,
+        #     chat_link=chat_link,
+        # )
+        # chat_subscription = await GroupSubscriptionPlanService.get_subscription(my_chat_member.chat.id)
+        # is_active_free_trial = datetime.datetime.fromtimestamp(chat_subscription.free_trial) > datetime.datetime.now()
+        #
+        # last_time_subscribe_timestamp = (
+        #     chat_subscription.free_trial if is_active_free_trial else
+        #     chat_subscription.auction_sub_time if chat_subscription.auction_paid else
+        #     chat_subscription.ads_sub_time if chat_subscription.ads_paid else 0
+        # )
+        # kb = activate_ad_auction_kb(auction_token, ads_token, group_id, back_btn, free_trial)
+        # if last_time_subscribe_timestamp < time.time():
+        #     await bot.edit_message_text(  # Повідомлення про відсутність активної підписки
+        #         chat_id=user_id,
+        #         message_id=check_sub_msg.message_id,
+        #         text=_("Ви не маєте активних підписок. Оформіть підписку "
+        #                "для групи, щоб отримати доступ до потрібних функцій."),
+        #         reply_markup=create_subscription_group_buttons_kb(chat_subscription.group_fk,
+        #                                                           is_trial=chat_subscription.free_trial == 0)
+        #     )
+        #     return None
+        # else:
+        #     await bot.edit_message_text(  # Повідомлення про активну підписку
+        #         chat_id=user_id,
+        #         message_id=check_sub_msg.message_id,
+        #         text=_("Зараз у вас активна підписка типу *{subscribe}* до *{last_time_subscribe}*").format(
+        #             subscribe=(
+        #                 _('Пробний період') if is_active_free_trial else
+        #                 _('Універсальна') if chat_subscription.auction_paid and chat_subscription.ads_paid else
+        #                 _('Аукціон') if chat_subscription.auction_paid else _('Оголошення')
+        #             ),
+        #             last_time_subscribe=datetime.datetime.fromtimestamp(last_time_subscribe_timestamp).strftime(
+        #                 "%d.%m.%Y"),
+        #         ),
+        #         reply_markup=admin_menu_kb.as_markup()
+        #     )
+        #     return None
 
     elif new_status in messages:
         await bot.send_message(chat_id=user_id, text=messages[new_status])

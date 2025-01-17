@@ -35,22 +35,44 @@ class GroupSubscriptionPlanService:
                 ads_paid=ads_paid,
                 ads_token=ads_token,
                 free_trial=free_trial
-            )
+            ).prefix_with('IGNORE')
             await session.execute(stmt_subscription_plan)
             await session.commit()
 
     @staticmethod
     async def get_subscription(group_id):
+        """
+        Отримує підписку для групи. Якщо підписки немає, створює її.
+        :param group_id: Унікальний ідентифікатор групи (chat_id).
+        :return: Об'єкт GroupSubscriptionPlan.
+        """
         async with async_session() as session:
+            # Спроба знайти існуючу підписку
             stmt = (
                 select(GroupSubscriptionPlan)
                 .join(GroupSubscriptionPlan.group)  # З’єднання з ChannelGroup
-                .filter(ChannelGroup.chat_id == group_id)  # Використовуємо filter для умов
+                .filter(ChannelGroup.chat_id == group_id)  # Фільтрація по chat_id
                 .options(selectinload(GroupSubscriptionPlan.group))  # Завантаження відносин
             )
             res = await session.execute(stmt)
-            chat = res.scalars().first()
-            return chat
+            subscription = res.scalars().first()
+            # Якщо підписки немає, створюємо нову
+            if not subscription:
+                await GroupSubscriptionPlanService.create_subscription(
+                    chat_id=group_id,
+                    auction_sub_time=0,  # Значення за замовчуванням
+                    auction_paid=False,
+                    auction_token=None,
+                    ads_sub_time=0,
+                    ads_paid=False,
+                    ads_token=None,
+                    free_trial=0
+                )
+                await session.commit()
+                # Повторно отримуємо створену підписку
+                res = await session.execute(stmt)
+                subscription = res.scalars().first()
+            return subscription
 
     @staticmethod
     async def update_group_subscription_sql(chat_id, **kwargs):

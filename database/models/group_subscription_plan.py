@@ -29,7 +29,7 @@ class GroupSubscriptionPlan(Base):
     __tablename__ = 'GroupSubscriptionPlan'
     id: Mapped[int] = mapped_column(primary_key=True, nullable=False, autoincrement=True, unique=True)
 
-    group_fk: Mapped[str] = mapped_column(ForeignKey('ChannelGroup.chat_id', ondelete='CASCADE'))
+    group_fk: Mapped[str] = mapped_column(ForeignKey('ChannelGroup.chat_id', ondelete='CASCADE'), unique=True)
     group: Mapped["ChannelGroup"] = relationship("ChannelGroup", back_populates="subscription_plan", uselist=False)
 
     auction_sub_time: Mapped[int] = mapped_column(nullable=False, default=0, server_default="0")
