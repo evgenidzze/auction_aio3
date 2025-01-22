@@ -1029,13 +1029,13 @@ async def edit_new_text(call: types.CallbackQuery, state: FSMContext, **kwargs):
             lot = await LotService.get_lot(obj_id)
             if lot.new_text:
                 user = await UserService.get_user(lot.owner_telegram_id)
+                user_tg = await bot.get_chat(user.telegram_id)
                 kb = await utils.utils.create_price_step_kb(lot.price_steps, obj_id, lot.currency)
                 kb.inline_keyboard.extend([[InlineKeyboardButton(text='⏳', callback_data=f'time_left_lot_{obj_id}')]])
                 kb.inline_keyboard.extend(
                     [[InlineKeyboardButton(text=_('💬 Задати питання автору', locale=user.language),
-                                           url=await create_start_link(bot=call.bot,
-                                                                       payload=f'question_{user.telegram_id}_{obj_id}',
-                                                                       encode=True))]])
+                                           url=f'https://t.me/{user_tg.username}')]])
+
                 await LotService.update_lot_sql(obj_id, description=lot.new_text, new_text=None)
                 try:
                     caption = _("<b>{description}</b>\n\n"
