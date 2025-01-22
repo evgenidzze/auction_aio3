@@ -29,8 +29,7 @@ import keyboards.client_kb as client_kb
 from utils.paypal import get_order_status, create_order
 import utils.utils
 
-from handlers.middleware import \
-    subscription_group_required  # TODO: адмін групи одобряє публікування, в нього треба ловити (а тут модифікований для попередження)
+from handlers.middleware import subscription_group_required, require_username
 
 locale.setlocale(locale.LC_ALL, 'uk_UA.utf8')
 router = Router()
@@ -176,7 +175,9 @@ async def other_channels_groups(call: types.CallbackQuery, **kwargs):
 #                                              AUCTION COMMANDS                                                        #
 ########################################################################################################################
 
+
 @callback_query(F.data == 'create_auction', utils.utils.IsMessageType(message_type=[ContentType.TEXT]))
+@require_username
 async def lot_group(call: types.CallbackQuery, state: FSMContext, **kwargs):
     chats = await GroupChannelService.get_all_groups()  # замінити на групи користувача
     kb = await utils.utils.generate_chats_kb(chats)
@@ -338,6 +339,7 @@ async def my_ads(call: types.CallbackQuery, state: FSMContext, **kwargs):
 
 
 @callback_query(F.data == 'create_ad')
+@require_username
 async def group_for_adv(call: types.CallbackQuery, state: FSMContext, **kwargs):
     await call.message.edit_text(text=_('Перевірка підписки...'))
     is_subscribed = await utils.utils.adv_sub_time_remain(call.from_user.id)
@@ -442,6 +444,7 @@ async def adv_publish(message, state, **kwargs):
 
 
 @callback_query(F.data.startswith('bid'))
+@require_username
 async def make_bid(message: types.CallbackQuery, **kwargs):
     bid_data = message.data.split('_')
     lot_id = bid_data[2]

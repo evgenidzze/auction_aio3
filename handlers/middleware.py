@@ -12,6 +12,10 @@ from database.services.group_subscription_plan_service import GroupSubscriptionP
 from database.services.user_service import UserService
 from utils.create_bot import i18n
 from utils.utils import translate_kb
+from keyboards.client_kb import main_kb
+
+
+from functools import wraps
 
 
 # class HiddenUser(BaseMiddleware):
@@ -117,3 +121,31 @@ def subscription_group_required(*subscription_types: List[str]):
         return wrapper
 
     return decorator
+
+
+def require_username(func):
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        # Отримання `message` або `callback_query` з аргументів
+        for arg in args:
+            if isinstance(arg, Message):
+                user = arg.from_user
+                if not user.username:
+                    await arg.answer(
+                        text=_("Щоб користуватись ботом потрібно створити або зробити публічним юзернейм у вашому телеграм акаунті."),
+                        reply_markup=main_kb
+                    )
+                    return None
+                break
+            elif isinstance(arg, types.CallbackQuery):
+                user = arg.from_user
+                if not user.username:
+                    await arg.answer(
+                        text=_("Щоб користуватись ботом потрібно створити або зробити публічним юзернейм у вашому телеграм акаунті."),
+                        show_alert=True  # Показує сповіщення в області callback
+                    )
+                    return None
+                break
+        # Якщо юзернейм є, виконуємо основну функцію
+        return await func(*args, **kwargs)
+    return wrapper
