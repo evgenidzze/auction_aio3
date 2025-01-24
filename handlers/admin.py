@@ -225,6 +225,16 @@ async def my_chat_member_handler(my_chat_member: types.ChatMemberUpdated):
     }
 
     if new_status == ChatMemberStatus.ADMINISTRATOR:
+
+        chat_link = await bot.export_chat_invite_link(chat_id=my_chat_member.chat.id)
+        await GroupChannelService.create_group(
+            owner_telegram_id=user_id,
+            chat_id=my_chat_member.chat.id,
+            chat_type=my_chat_member.chat.type,
+            chat_name=chat_title,
+            chat_link=chat_link,
+        )
+
         check_sub_msg = await bot.send_message(chat_id=user_id, text=_('Перевірка підписки...'))
         await user_chat_menu(types.CallbackQuery(id='generated_callback_query', from_user=my_chat_member.from_user,
                                                  chat_instance=str(my_chat_member.chat.id),

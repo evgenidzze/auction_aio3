@@ -28,6 +28,8 @@
    GALLERY_CHANNEL=your_gallery_channel_id
    PARTNER_ID=your_paypal_partner_id
    DEV_ID=your_telegram_id
+   USERNAME_BOT=your_bot_username
+   ```
 
 ### Налаштування PayPal для тестування
 

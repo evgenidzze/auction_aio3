@@ -172,9 +172,7 @@ async def send_post(user_id, send_to_id, photo_id, video_id, description, start_
     elif not moder_review and not change_text:
         kb.inline_keyboard.extend([[InlineKeyboardButton(text='⏳', callback_data=f'time_left_lot_{lot_id}')]])
         kb.inline_keyboard.extend([[InlineKeyboardButton(text=_('💬 Задати питання автору'),
-                                                         url=await create_start_link(bot=bot,
-                                                                                     payload=f'question_{user_id}_{lot_id}',
-                                                                                     encode=True))]])
+                                                         url=f'https://t.me/{user_tg.username}')]])
         if under_moderation:
             caption = _('<i>⚠️ Ваш лот проходить модерацію...\n</i>')
     elif change_text and lot_id:
