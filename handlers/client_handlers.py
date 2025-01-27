@@ -34,8 +34,8 @@ from handlers.middleware import subscription_group_required, require_username
 locale.setlocale(locale.LC_ALL, 'uk_UA.utf8')
 router = Router()
 
-
-# Декоратор для реєстрування функцій обробників каллбеків @router.register
+message = router.message
+callback_query = router.callback_query
 
 
 class FSMClient(StatesGroup):
@@ -72,32 +72,6 @@ class FSMClient(StatesGroup):
     language = State()
     description = State()
     adv_group_id = State()
-
-
-callback_query_handlers = []
-message_handlers = []
-
-
-def callback_query(*args):
-    def decorator(func):
-        async def wrapped(*func_args, **func_kwargs):
-            return await func(*func_args, **func_kwargs)
-
-        callback_query_handlers.append((wrapped, args))
-        return wrapped
-
-    return decorator
-
-
-def message(*args):
-    def decorator(func):
-        async def wrapped(*func_args, **func_kwargs):
-            return await func(*func_args, **func_kwargs)
-
-        message_handlers.append((wrapped, args))
-        return wrapped
-
-    return decorator
 
 
 ########################################################################################################################
@@ -1161,9 +1135,9 @@ async def save_repost_count(call: types.CallbackQuery, state: FSMContext, **kwar
 
 def register_client_handlers(r: Router):
     """Register all handlers for client"""
-
-    for handler, args in callback_query_handlers:
-        r.callback_query.register(handler, *args)
-
-    for handler, args in message_handlers:
-        r.message.register(handler, *args)
+    pass
+    # for handler, args in callback_query_handlers:
+    #     r.callback_query.register(handler, *args)
+    #
+    # for handler, args in message_handlers:
+    #     r.message.register(handler, *args)

@@ -5,18 +5,21 @@ from aiogram.types import BotCommand
 
 from database.services.base import on_startup
 from utils.create_bot import dp, bot, i18n, scheduler
-from handlers.admin import register_admin_handlers
-from handlers.client_handlers import router, register_client_handlers
+from handlers import admin, client_handlers
 from handlers.middleware import Localization, ChangeLanguageMiddleware
 from utils.utils import set_logging
+from aiogram import Router
 
 
 async def main():
     set_logging()
+
+    router = Router()
+    router.include_router(admin.router)  # Include admin handlers
+    router.include_router(client_handlers.router)  # Include client handlers
+
     Localization(i18n=i18n).setup(router)
     bot.session.middleware(ChangeLanguageMiddleware())
-    register_client_handlers(router)
-    register_admin_handlers(router)
     dp.startup.register(on_startup)
     await bot(DeleteWebhook(drop_pending_updates=True))
     dp.include_router(router)

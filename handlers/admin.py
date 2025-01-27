@@ -13,7 +13,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from database.services.group_channel_service import GroupChannelService
 from database.services.group_subscription_plan_service import GroupSubscriptionPlanService
 from database.services.user_service import UserService
-from handlers.client_handlers import router
+# from handlers.client_handlers import router
 from utils.create_bot import job_stores, bot, _
 
 from keyboards.admin_kb import reject_to_admin_btn, back_to_admin_btn, \
@@ -28,6 +28,11 @@ from utils.create_bot import scheduler
 from apscheduler.jobstores.base import JobLookupError
 
 TypeSubscription: TypeAlias = Literal['ads', 'auction', 'free_trial']
+
+
+router = Router()
+message = router.message
+callback_query = router.callback_query
 
 
 class FSMAdmin(StatesGroup):
@@ -239,51 +244,7 @@ async def my_chat_member_handler(my_chat_member: types.ChatMemberUpdated):
         await user_chat_menu(types.CallbackQuery(id='generated_callback_query', from_user=my_chat_member.from_user,
                                                  chat_instance=str(my_chat_member.chat.id),
                                                  data=f'{my_chat_member.chat.id}', message=check_sub_msg))
-        # chat_link = await bot.export_chat_invite_link(chat_id=my_chat_member.chat.id)
-        # await bot.send_message(chat_id=user_id, text=messages[new_status])
-        # check_sub_msg = await bot.send_message(chat_id=user_id, text=_('Перевірка підписки...'))
-        # await GroupChannelService.create_group(
-        #     owner_telegram_id=user_id,
-        #     chat_id=my_chat_member.chat.id,
-        #     chat_type=my_chat_member.chat.type,
-        #     chat_name=chat_title,
-        #     chat_link=chat_link,
-        # )
-        # chat_subscription = await GroupSubscriptionPlanService.get_subscription(my_chat_member.chat.id)
-        # is_active_free_trial = datetime.datetime.fromtimestamp(chat_subscription.free_trial) > datetime.datetime.now()
-        #
-        # last_time_subscribe_timestamp = (
-        #     chat_subscription.free_trial if is_active_free_trial else
-        #     chat_subscription.auction_sub_time if chat_subscription.auction_paid else
-        #     chat_subscription.ads_sub_time if chat_subscription.ads_paid else 0
-        # )
-        # kb = activate_ad_auction_kb(auction_token, ads_token, group_id, back_btn, free_trial)
-        # if last_time_subscribe_timestamp < time.time():
-        #     await bot.edit_message_text(  # Повідомлення про відсутність активної підписки
-        #         chat_id=user_id,
-        #         message_id=check_sub_msg.message_id,
-        #         text=_("Ви не маєте активних підписок. Оформіть підписку "
-        #                "для групи, щоб отримати доступ до потрібних функцій."),
-        #         reply_markup=create_subscription_group_buttons_kb(chat_subscription.group_fk,
-        #                                                           is_trial=chat_subscription.free_trial == 0)
-        #     )
-        #     return None
-        # else:
-        #     await bot.edit_message_text(  # Повідомлення про активну підписку
-        #         chat_id=user_id,
-        #         message_id=check_sub_msg.message_id,
-        #         text=_("Зараз у вас активна підписка типу *{subscribe}* до *{last_time_subscribe}*").format(
-        #             subscribe=(
-        #                 _('Пробний період') if is_active_free_trial else
-        #                 _('Універсальна') if chat_subscription.auction_paid and chat_subscription.ads_paid else
-        #                 _('Аукціон') if chat_subscription.auction_paid else _('Оголошення')
-        #             ),
-        #             last_time_subscribe=datetime.datetime.fromtimestamp(last_time_subscribe_timestamp).strftime(
-        #                 "%d.%m.%Y"),
-        #         ),
-        #         reply_markup=admin_menu_kb.as_markup()
-        #     )
-        #     return None
+
 
     elif new_status in messages:
         await bot.send_message(chat_id=user_id, text=messages[new_status])
@@ -436,3 +397,6 @@ def register_admin_handlers(r: Router):
     r.callback_query.register(update_bot_subscription_status, F.data.endswith('sub_update'))
     r.message.register(user_access, FSMAdmin.user_id)
     r.callback_query.register(paid_chat_function, F.data.startswith('paid:'))
+
+
+register_admin_handlers(router)  # TODO: Замість цього навішати декораторів на функції
