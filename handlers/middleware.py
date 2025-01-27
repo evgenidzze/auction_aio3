@@ -8,6 +8,9 @@ from aiogram.methods.base import TelegramType, Response, TelegramMethod
 from aiogram.types import InlineKeyboardMarkup, TelegramObject
 from aiogram.utils.i18n import gettext as _, I18nMiddleware
 
+from utils.config import USERNAME_BOT
+
+
 from database.services.group_subscription_plan_service import GroupSubscriptionPlanService
 from database.services.user_service import UserService
 from utils.create_bot import i18n
@@ -16,35 +19,10 @@ from keyboards.client_kb import main_kb
 
 
 from functools import wraps
-
-
-# class HiddenUser(BaseMiddleware):
-#     async def __call__(
-#             self,
-#             handler: Callable[[TelegramObject, Dict[str, Any]], Awaitable[Any]],
-#             event: TelegramObject,
-#             data: Dict[str, Any],
-#     ) -> Any:
-#         # Можна залишити порожнім або викликати наступний middleware
-#         return await handler(event, data)
-#
-#     async def on_process_message(self, message: types.Message, data):
-#         from keyboards.client_kb import main_kb
-#
-#         if not message.from_user.username:
-#             await message.answer(text=_(
-#                 "Щоб користуватись ботом потрібно створити або зробити публічним юзернейм у вашому телеграм акаунті."),
-#                 reply_markup=main_kb)
-#             raise CancelHandler()
-#
-#     async def on_process_callback_query(self, query: types.CallbackQuery, data):
-#         from keyboards.client_kb import main_kb
-#         if not query.from_user.username:
-#             await query.message.answer(
-#                 text=_(
-#                     "Щоб користуватись ботом потрібно створити або зробити публічним юзернейм у вашому телеграм акаунті."),
-#                 reply_markup=main_kb)
-#             raise CancelHandler()
+import functools
+from datetime import datetime
+from typing import Callable, List
+from aiogram.types import Message
 
 
 class ChangeLanguageMiddleware(BaseRequestMiddleware):
@@ -76,13 +54,6 @@ class Localization(I18nMiddleware):
         else:
             locale = 'en'
         return locale
-
-
-# TODO: Можливо це винести в окремий файл?
-import functools
-from datetime import datetime
-from typing import Callable, List
-from aiogram.types import Message
 
 
 # TODO: Накладіть цей декоратор на ваші функції, які вимагають підписки. Приклад використання: @subscription_group_required("auction", "ads")
@@ -126,14 +97,21 @@ def subscription_group_required(*subscription_types: List[str]):
 def require_username(func):
     @wraps(func)
     async def wrapper(*args, **kwargs):
-        # Отримання `message` або `callback_query` з аргументів
+        """Якщо username відсутній, відправляємо повідомлення з інструкцією."""
+        answer_warning_username_text = _("Щоб користуватись ботом потрібно створити або зробити публічним юзернейм"
+                                " у вашому телеграм акаунті.")
+        answer_warning_username_url = _(
+                            "\n\n[Читати інструкцію]({url})"
+                        ).format(url='https://telegra.ph/How-to-Set-a-Username-in-Telegram-01-27')
+
         for arg in args:
             if isinstance(arg, Message):
                 user = arg.from_user
                 if not user.username:
                     await arg.answer(
-                        text=_("Щоб користуватись ботом потрібно створити або зробити публічним юзернейм у вашому телеграм акаунті."),
-                        reply_markup=main_kb
+                        text=answer_warning_username_text + answer_warning_username_url,
+                        reply_markup=main_kb,
+                        parse_mode='markdown',
                     )
                     return None
                 break
@@ -141,8 +119,13 @@ def require_username(func):
                 user = arg.from_user
                 if not user.username:
                     await arg.answer(
-                        text=_("Щоб користуватись ботом потрібно створити або зробити публічним юзернейм у вашому телеграм акаунті."),
-                        show_alert=True  # Показує сповіщення в області callback
+                        text=answer_warning_username_text,
+                        show_alert=True,
+                    )
+                    await arg.bot.send_message(
+                        chat_id=user.id,
+                        text=answer_warning_username_text + answer_warning_username_url,
+                        parse_mode='markdown',
                     )
                     return None
                 break
