@@ -855,7 +855,7 @@ async def accept_adv(call: types.CallbackQuery, state: FSMContext, **kwargs):
 
 
 @callback_query(F.data.startswith('decline_lot'))
-async def decline_lot(call: types.CallbackQuery):
+async def decline_lot(call: types.CallbackQuery, **kwargs):
     decline = call.data.split('_')
     new_lot_id = decline[-1]
     lot = await LotService.get_lot(new_lot_id)
@@ -876,7 +876,7 @@ async def decline_lot(call: types.CallbackQuery):
 
 
 @callback_query(F.data.startswith('decline_adv'))
-async def decline_adv(call: types.CallbackQuery):
+async def decline_adv(call: types.CallbackQuery, **kwargs):
     decline = call.data.split('_')
     new_adv_id = decline[-1]
     adv = await AdvertisementService.get_adv(new_adv_id)
@@ -897,7 +897,7 @@ async def decline_adv(call: types.CallbackQuery):
 
 
 @callback_query(F.data.startswith('lot_deletion_'))
-async def lot_deletion(call: types.CallbackQuery):
+async def lot_deletion(call: types.CallbackQuery, **kwargs):
     data = call.data.split('_')
     action = data[2]
     lot_id = data[-1]
