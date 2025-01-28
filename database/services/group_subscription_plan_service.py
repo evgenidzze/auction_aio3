@@ -83,7 +83,7 @@ class GroupSubscriptionPlanService:
         :param kwargs: Поля, які потрібно оновити (ключ-значення).
         """
         async with async_session() as session:
-            stmt = update(GroupSubscriptionPlan).where(ChannelGroup.chat_id == chat_id).values(**kwargs)
+            stmt = update(GroupSubscriptionPlan).where(GroupSubscriptionPlan.group_fk == chat_id).values(**kwargs)
             try:
                 await session.execute(stmt)
                 await session.commit()
