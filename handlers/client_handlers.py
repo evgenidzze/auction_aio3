@@ -34,8 +34,8 @@ from handlers.middleware import subscription_group_required, require_username
 locale.setlocale(locale.LC_ALL, 'uk_UA.utf8')
 router = Router()
 
-
-# Декоратор для реєстрування функцій обробників каллбеків @router.register
+message = router.message
+callback_query = router.callback_query
 
 
 class FSMClient(StatesGroup):
@@ -72,32 +72,6 @@ class FSMClient(StatesGroup):
     language = State()
     description = State()
     adv_group_id = State()
-
-
-callback_query_handlers = []
-message_handlers = []
-
-
-def callback_query(*args):
-    def decorator(func):
-        async def wrapped(*func_args, **func_kwargs):
-            return await func(*func_args, **func_kwargs)
-
-        callback_query_handlers.append((wrapped, args))
-        return wrapped
-
-    return decorator
-
-
-def message(*args):
-    def decorator(func):
-        async def wrapped(*func_args, **func_kwargs):
-            return await func(*func_args, **func_kwargs)
-
-        message_handlers.append((wrapped, args))
-        return wrapped
-
-    return decorator
 
 
 ########################################################################################################################
@@ -684,7 +658,7 @@ async def delete_lot(call: types.CallbackQuery, state: FSMContext, **kwargs):
     if lot.lot_link:
         await call.message.edit_text(text=_('✅ Запит на видалення створено.'))
         group_data = await GroupChannelService.get_group_record(group_id)
-        await bot.send_message(chat_id=group_data.owner_telegram_id,
+        await bot.send_message(chat_id=group_data.owner_telegram_id, # TODO: неспрацював запит на видалення.
                                text=_('<b>⚠️ Користувач {url} хоче видалити лот:\n</b>'
                                       '{lot_link}').format(url=call.from_user.url, lot_link=lot.lot_link),
                                reply_markup=kb)
@@ -855,7 +829,7 @@ async def accept_adv(call: types.CallbackQuery, state: FSMContext, **kwargs):
 
 
 @callback_query(F.data.startswith('decline_lot'))
-async def decline_lot(call: types.CallbackQuery):
+async def decline_lot(call: types.CallbackQuery, **kwargs):
     decline = call.data.split('_')
     new_lot_id = decline[-1]
     lot = await LotService.get_lot(new_lot_id)
@@ -876,7 +850,7 @@ async def decline_lot(call: types.CallbackQuery):
 
 
 @callback_query(F.data.startswith('decline_adv'))
-async def decline_adv(call: types.CallbackQuery):
+async def decline_adv(call: types.CallbackQuery, **kwargs):
     decline = call.data.split('_')
     new_adv_id = decline[-1]
     adv = await AdvertisementService.get_adv(new_adv_id)
@@ -897,7 +871,7 @@ async def decline_adv(call: types.CallbackQuery):
 
 
 @callback_query(F.data.startswith('lot_deletion_'))
-async def lot_deletion(call: types.CallbackQuery):
+async def lot_deletion(call: types.CallbackQuery, **kwargs):
     data = call.data.split('_')
     action = data[2]
     lot_id = data[-1]
@@ -1158,12 +1132,3 @@ async def save_repost_count(call: types.CallbackQuery, state: FSMContext, **kwar
     await bot.send_message(chat_id=call.from_user.id, text=text, reply_markup=kb,
                            reply_to_message_id=last_message_id)
 
-
-def register_client_handlers(r: Router):
-    """Register all handlers for client"""
-
-    for handler, args in callback_query_handlers:
-        r.callback_query.register(handler, *args)
-
-    for handler, args in message_handlers:
-        r.message.register(handler, *args)

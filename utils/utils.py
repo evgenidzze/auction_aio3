@@ -55,6 +55,7 @@ class IsMessageType(BaseFilter):
 
 async def lot_ending(job_id, msg_id: types.Message):
     lot = await LotService.get_lot(job_id)
+
     scheduler.remove_job(f'lot_{job_id}')
     if lot:
         owner_telegram_id = lot.owner_telegram_id
@@ -81,12 +82,11 @@ async def lot_ending(job_id, msg_id: types.Message):
                 await bot.send_message(owner_telegram_id, text=text, reply_markup=kb, )
 
             else:
-                from utils.config import AUCTION_CHANNEL
                 text = _("🏆 Аукціон <b>{desc}</b> завершено!\n"
                          "Можете зв'язатись з переможцем https://t.me/{username}.").format(username=winner_tg.username,
                                                                                            desc=lot.description[:25])
                 await delete_record_by_id(lot.id, database.models.lot.Lot)
-                await bot.delete_message(chat_id=AUCTION_CHANNEL, message_id=lot.message_id)
+                await bot.delete_message(chat_id=lot.group_id, message_id=lot.message_id)
                 await bot.send_message(owner_telegram_id, text=text, )
                 text = _(
                     "Вітаю, <b>{first_name}!</b><a href='https://telegra.ph/file/5f63d10b734d545a032cc.jpg'>⠀</a>\n").format(
@@ -103,9 +103,8 @@ async def lot_ending(job_id, msg_id: types.Message):
             await delete_record_by_id(job_id, database.models.lot.Lot)
 
         """close auction"""
-        from utils.config import AUCTION_CHANNEL
         try:
-            await bot.delete_message(chat_id=AUCTION_CHANNEL, message_id=msg_id)
+            await bot.delete_message(chat_id=lot.group_id, message_id=msg_id)
         except Exception as er:
             print(er)
     else:
@@ -126,8 +125,7 @@ async def adv_ending(job_id):
 
                                reply_markup=main_kb)
         try:
-            from utils.config import ADVERT_CHANNEL
-            await bot.delete_message(chat_id=ADVERT_CHANNEL, message_id=adv.message_id)
+            await bot.delete_message(chat_id=adv.group_id, message_id=adv.message_id)
         except Exception as er:
             print(er)
     else:
@@ -300,11 +298,18 @@ async def payment_link_generate(token):
 
 async def new_bid_caption(caption, first_name, price, currency, owner_locale, bid_count):
     old_text = caption.split('\n💰')
+
+    bins = old_text[0].split('\n')
+    if len(bins) > 18:
+        old_text[0] = '\n'.join((bins[:5] + ['\t...'] + bins[-12:]))
+
     first_part_caption = _("{old_text}    {bid_count} - {first_name} ставить {price}{currency}\n",
                            locale=owner_locale).format(
         old_text=old_text[0], first_name=first_name, price=price, currency=currency, bid_count=bid_count)
+
     caption = _("{first_part_caption}\n💰 {old_text}").format(first_part_caption=first_part_caption,
                                                              old_text=old_text[1].lstrip())
+
     return caption
 
 
