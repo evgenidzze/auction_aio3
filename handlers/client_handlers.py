@@ -34,8 +34,8 @@ from handlers.middleware import subscription_group_required, require_username
 locale.setlocale(locale.LC_ALL, 'uk_UA.utf8')
 router = Router()
 
-message = router.message
-callback_query = router.callback_query
+message = router.message  # Handler for messages
+callback_query = router.callback_query  # Handler for callback queries
 
 
 class FSMClient(StatesGroup):

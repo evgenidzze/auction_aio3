@@ -13,7 +13,6 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from database.services.group_channel_service import GroupChannelService
 from database.services.group_subscription_plan_service import GroupSubscriptionPlanService
 from database.services.user_service import UserService
-# from handlers.client_handlers import router
 from utils.create_bot import job_stores, bot, _
 
 from keyboards.admin_kb import reject_to_admin_btn, back_to_admin_btn, \
@@ -31,8 +30,8 @@ TypeSubscription: TypeAlias = Literal['ads', 'auction', 'free_trial']
 
 
 router = Router()
-message = router.message
-callback_query = router.callback_query
+message = router.message  # Handler for message
+callback_query = router.callback_query  # Handler for callback_query
 
 
 class FSMAdmin(StatesGroup):
