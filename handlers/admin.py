@@ -216,7 +216,8 @@ async def my_chat_member_handler(my_chat_member: types.ChatMemberUpdated):
             "{title} успішно підключено!"
         ).format(title=chat_title),
         ChatMemberStatus.MEMBER: _(
-            "Для того, щоб бот функціонував у групі {title}, потрібно надати йому права адміністратора."
+            "{title} успішно підключено!"
+            #"Для того, щоб бот функціонував у групі {title}, потрібно надати йому права адміністратора."
         ).format(title=chat_title),
         ChatMemberStatus.RESTRICTED: _(
             "Бот не може функціонувати у групі {title}, оскільки він заблокований."
@@ -229,7 +230,7 @@ async def my_chat_member_handler(my_chat_member: types.ChatMemberUpdated):
         ).format(title=chat_title),
     }
 
-    if new_status == ChatMemberStatus.ADMINISTRATOR:
+    if new_status == ChatMemberStatus.ADMINISTRATOR or new_status == ChatMemberStatus.MEMBER:
 
         chat_link = await bot.export_chat_invite_link(chat_id=my_chat_member.chat.id)
         await GroupChannelService.create_group(
