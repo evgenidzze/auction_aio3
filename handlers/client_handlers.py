@@ -745,7 +745,7 @@ async def accept_lot(call: types.CallbackQuery, state: FSMContext, **kwargs):
                                             approved=1)
             scheduler.add_job(utils.utils.lot_ending, trigger='interval', id=f'lot_{new_lot_id}',
                               hours=lot.lot_time_living,
-                              kwargs={'job_id': new_lot_id, 'msg_id': msg.message_id})
+                              kwargs={'job_id': new_lot_id})
             channel = await bot.get_chat(chat_id=group_id)
             await call.answer()
             if len(description) > 20:

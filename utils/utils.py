@@ -53,7 +53,7 @@ class IsMessageType(BaseFilter):
             return True
 
 
-async def lot_ending(job_id: int, msg_id: types.Message) -> None:
+async def lot_ending(job_id: int, *args, **kwargs) -> None:
     """Handles the ending of an auction lot."""
     scheduler.remove_job(f'lot_{job_id}')
 
@@ -85,8 +85,7 @@ async def lot_ending(job_id: int, msg_id: types.Message) -> None:
                 price=lot.last_bid,
                 currency=lot.currency,
                 owner_username=owner_tg_chat.username
-            ),
-            reply_markup=main_kb
+            )  # TODO: Додати кнопку для скарги на власника лота.
         )
 
         await bot.send_message(
@@ -132,7 +131,7 @@ async def lot_ending(job_id: int, msg_id: types.Message) -> None:
         logging.error(error)
 
 
-async def adv_ending(job_id: int) -> None:
+async def adv_ending(job_id: int, *args, **kwargs) -> None:
     """Handles the expiration of an advertisement."""
     scheduler.remove_job(f'adv_{job_id}')
 
@@ -348,8 +347,6 @@ async def translate_kb(kb: InlineKeyboardMarkup, locale, owner_id, no_spaces=Fal
         return kb
 
 
-
-
 async def gather_media_from_messages(messages: List[types.Message], state) -> Tuple[bool, bool] | Tuple[
     List[str], List[str]]:
     videos_id, photos_id = [], []
@@ -365,7 +362,6 @@ async def gather_media_from_messages(messages: List[types.Message], state) -> Tu
     return videos_id, photos_id
 
 
-
 async def adv_sub_time_remain(user_id):
     user = await UserService.get_user(user_id)
     adv_sub_time: int = user.advert_subscribe_time
@@ -375,12 +371,6 @@ async def adv_sub_time_remain(user_id):
         return True
     else:
         return False
-
-
-# async def bot_sub_time_remain(chat):
-#     adv_sub_time: int = chat.ads_sub_time
-#     auction_sub_time: int = chat.auction_sub_time
-#     return adv_sub_time, auction_sub_time
 
 
 async def user_have_approved_adv_token(user_id) -> bool:
