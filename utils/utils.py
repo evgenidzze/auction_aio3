@@ -86,7 +86,7 @@ async def lot_ending(job_id, msg_id: types.Message):
                          "Можете зв'язатись з переможцем https://t.me/{username}.").format(username=winner_tg.username,
                                                                                            desc=lot.description[:25])
                 await delete_record_by_id(lot.id, database.models.lot.Lot)
-                await bot.delete_message(chat_id=lot.group_id, message_id=lot.message_id)
+                await bot.delete_message(chat_id=lot.group_fk, message_id=lot.message_id)
                 await bot.send_message(owner_telegram_id, text=text, )
                 text = _(
                     "Вітаю, <b>{first_name}!</b><a href='https://telegra.ph/file/5f63d10b734d545a032cc.jpg'>⠀</a>\n").format(
@@ -104,7 +104,7 @@ async def lot_ending(job_id, msg_id: types.Message):
 
         """close auction"""
         try:
-            await bot.delete_message(chat_id=lot.group_id, message_id=msg_id)
+            await bot.delete_message(chat_id=lot.group_fk, message_id=msg_id)
         except Exception as er:
             print(er)
     else:
@@ -125,7 +125,7 @@ async def adv_ending(job_id):
 
                                reply_markup=main_kb)
         try:
-            await bot.delete_message(chat_id=adv.group_id, message_id=adv.message_id)
+            await bot.delete_message(chat_id=adv.group_fk, message_id=adv.message_id)
         except Exception as er:
             print(er)
     else:
@@ -149,24 +149,24 @@ async def create_user_lots_kb(lots):
     return kb
 
 
-async def send_post(user_id, send_to_id, photo_id, video_id, description, start_price, price_steps, currency, city,
-                    lot_id=None, moder_review=None, under_moderation=None, change_text=None, new_desc=None, photos=None,
-                    videos=None, photos_link=None):
+async def create_lot_caption_and_kb(user_id, moder_review, lot_id, description, start_price, city, under_moderation,
+                                    new_desc, photos_link, change_text, photos, videos, price_steps, currency):
+    caption = ''
+    user = await UserService.get_user(user_id=user_id)
+
+    anti_sniper: datetime.time = user.anti_sniper
+    kb = await create_price_step_kb(price_steps, lot_id, currency)
+    user_tg = await bot.get_chat(user_id)
+
     if photos is None:
         photos = []
     if videos is None:
         videos = []
-    user = await UserService.get_user(user_id=user_id)
-    anti_sniper: datetime.time = user.anti_sniper
-    kb = await create_price_step_kb(price_steps, lot_id, currency)
-    caption = ''
-    user_tg = await bot.get_chat(user.telegram_id)
     if lot_id and moder_review:
         caption = _('<i>https://t.me/{username} - надіслав лот на модерацію.\n</i>').format(username=user_tg.username)
         decline_lot_btn.callback_data = f'decline_lot_{lot_id}'
         accept_lot_btn.callback_data = f'accept_lot_{lot_id}'
         kb.inline_keyboard.extend([[decline_lot_btn, accept_lot_btn]])
-
     elif not moder_review and not change_text:
         kb.inline_keyboard.extend([[InlineKeyboardButton(text='⏳', callback_data=f'time_left_lot_{lot_id}')]])
         kb.inline_keyboard.extend([[InlineKeyboardButton(text=_('💬 Задати питання автору'),
@@ -177,8 +177,8 @@ async def send_post(user_id, send_to_id, photo_id, video_id, description, start_
         caption = _(
             '<i>https://t.me/{username} - хоче змінити опис у лоті з \"{description}\" на \"{new_desc}\".\n</i>').format(
             username=user_tg.username, description=description, new_desc=new_desc)
-        decline_lot_btn.callback_data = f'edit_new_text:{lot_id}:decline:lot'
-        accept_lot_btn.callback_data = f'edit_new_text:{lot_id}:accept:lot'
+        decline_lot_btn.callback_data = f'edit_lot_text:{lot_id}:decline'
+        accept_lot_btn.callback_data = f'edit_lot_text:{lot_id}:accept'
         kb.inline_keyboard.extend([[decline_lot_btn, accept_lot_btn]])
     caption += _("<b>{description}</b>\n\n"
                  "🏙 <b>Місто:</b> {city}\n\n"
@@ -187,7 +187,21 @@ async def send_post(user_id, send_to_id, photo_id, video_id, description, start_
                  "⏱ <b>Антиснайпер</b> {anti_sniper} хв.\n").format(description=description, city=city,
                                                                     start_price=start_price, currency=currency,
                                                                     anti_sniper=anti_sniper.minute)
-    caption = await set_addition_media_to_caption(photos, videos, caption, photos_link)
+    caption = await set_addition_media_to_caption(photos, videos, caption, photos_link, lot_id=lot_id)
+    return caption, kb
+
+
+async def send_post(user_id, send_to_id, photo_id, video_id, description, start_price, price_steps, currency, city,
+                    lot_id=None, moder_review=None, under_moderation=None, change_text=None, new_desc=None, photos=None,
+                    videos=None, photos_link=None):
+    """
+    moder_review: bool - пост для модератора
+    """
+    caption, kb = await create_lot_caption_and_kb(user_id=user_id, moder_review=moder_review, lot_id=lot_id,
+                                                  description=description, start_price=start_price, city=city,
+                                                  under_moderation=under_moderation, new_desc=new_desc,
+                                                  photos_link=photos_link, change_text=change_text, photos=photos,
+                                                  videos=videos, price_steps=price_steps, currency=currency)
     msg = None
     if photo_id:
         msg = await bot.send_photo(chat_id=send_to_id, photo=photo_id, caption=caption, reply_markup=kb)
@@ -198,15 +212,16 @@ async def send_post(user_id, send_to_id, photo_id, video_id, description, start_
         return msg
 
 
-async def set_addition_media_to_caption(photos, videos, caption, url=None):
+async def set_addition_media_to_caption( photos, videos, caption, photos_link=None, lot_id=None):
     if len(photos) + len(videos) > 1:
         media_group = await build_media_group(photos, videos, caption=None)
         msg = await bot.send_media_group(chat_id=GALLERY_CHANNEL, media=media_group.build())
+        await LotService.update_lot_sql(lot_id=lot_id, photos_link=msg[0].get_url())
         caption += _("\n<a href='{photos_link}'><b>👉 Оглянути додаткові фото</b></a>").format(
             photos_link=msg[0].get_url())
-    elif url:
+    elif photos_link:
         caption += _("\n<a href='{photos_link}'><b>👉 Оглянути додаткові фото</b></a>").format(
-            photos_link=url)
+            photos_link=photos_link)
     return caption
 
 
@@ -238,8 +253,8 @@ async def send_advert(user_id, send_to_id, description, city, video_id, photo_id
         caption = _(
             "<i>https://t.me/{username} - хоче змінити опис у оголошенні з \"{description}\" на \"{new_desc}\".\n</i>").format(
             username=user_tg.username, description=description, new_desc=new_desc)
-        decline_lot_btn.callback_data = f'edit_new_text:{advert_id}:decline:ad'
-        accept_lot_btn.callback_data = f'edit_new_text:{advert_id}:accept:ad'
+        decline_lot_btn.callback_data = f'edit_ad_text:{advert_id}:decline'
+        accept_lot_btn.callback_data = f'edit_ad_text:{advert_id}:accept'
         kb.inline_keyboard.extend([[decline_lot_btn, accept_lot_btn]])
 
     caption += _("<b>{description}</b>\n\n"
@@ -297,18 +312,18 @@ async def payment_link_generate(token):
 
 
 async def new_bid_caption(caption, first_name, price, currency, owner_locale, bid_count):
-    old_text = caption.split('\n💰')
+    prev_text = caption.split('\n💰')
 
-    bins = old_text[0].split('\n')
+    bins = prev_text[0].split('\n')
     if len(bins) > 18:
-        old_text[0] = '\n'.join((bins[:5] + ['\t...'] + bins[-12:]))
+        prev_text[0] = '\n'.join((bins[:5] + ['\t...'] + bins[-12:]))
 
     first_part_caption = _("{old_text}    {bid_count} - {first_name} ставить {price}{currency}\n",
                            locale=owner_locale).format(
-        old_text=old_text[0], first_name=first_name, price=price, currency=currency, bid_count=bid_count)
+        old_text=prev_text[0], first_name=first_name, price=price, currency=currency, bid_count=bid_count)
 
     caption = _("{first_part_caption}\n💰 {old_text}").format(first_part_caption=first_part_caption,
-                                                             old_text=old_text[1].lstrip())
+                                                             old_text=prev_text[1].lstrip())
 
     return caption
 
@@ -319,8 +334,6 @@ async def translate_kb(kb: InlineKeyboardMarkup, locale, owner_id, no_spaces=Fal
             for button in row:
                 button.text = _(button.text, locale=locale)
         return kb
-
-
 
 
 async def gather_media_from_messages(messages: List[types.Message], state) -> Tuple[bool, bool] | Tuple[
@@ -338,7 +351,6 @@ async def gather_media_from_messages(messages: List[types.Message], state) -> Tu
     return videos_id, photos_id
 
 
-
 async def adv_sub_time_remain(user_id):
     user = await UserService.get_user(user_id)
     adv_sub_time: int = user.advert_subscribe_time
@@ -348,12 +360,6 @@ async def adv_sub_time_remain(user_id):
         return True
     else:
         return False
-
-
-# async def bot_sub_time_remain(chat):
-#     adv_sub_time: int = chat.ads_sub_time
-#     auction_sub_time: int = chat.auction_sub_time
-#     return adv_sub_time, auction_sub_time
 
 
 async def user_have_approved_adv_token(user_id) -> bool:
@@ -384,20 +390,25 @@ async def payment_kb(token, activate_btn_text, callback_data, back_btn: InlineKe
 async def repost_adv(job_id, username):
     logging.info(f'start repost adv job_id={job_id}')
     ad = await AdvertisementService.get_adv(job_id)
-    chat = await bot.get_chat(chat_id=ad.group_id)
-    if ad and chat:
-        kb = InlineKeyboardMarkup(inline_keyboard=[])
-        kb.inline_keyboard.extend([[InlineKeyboardButton(text='⏳', callback_data=f'time_left_adv_{job_id}')]])
-        kb.inline_keyboard.extend([[InlineKeyboardButton(text=_('💬 Задати питання автору'),
-                                                         url=f'https://t.me/{username}')]])
-        new_message = await bot.copy_message(chat_id=ad.group_id, from_chat_id=ad.group_id,
-                                             message_id=ad.message_id, reply_markup=kb)
-        await bot.delete_message(chat_id=ad.group_id, message_id=ad.message_id)
+    if not ad:
+        logging.info(f"Advertisement with id={job_id} doesn't exist.")
+        return
 
-        post_link = f"https://t.me/c/{ad.post_link.split('/')[-2]}/{new_message.message_id}"
-        await AdvertisementService.update_adv_sql(job_id, message_id=new_message.message_id, post_link=post_link)
-    else:
-        logging.info(f'adv where id={job_id} doesnt exist or chat {ad.group_id}')
+    chat = await bot.get_chat(chat_id=ad.group_fk)
+    if not chat:
+        logging.info(f"Chat with id={ad.group_fk} doesn't exist.")
+        return
+    kb = InlineKeyboardMarkup(inline_keyboard=[])
+    kb.inline_keyboard.extend([[InlineKeyboardButton(text='⏳', callback_data=f'time_left_adv_{job_id}')]])
+    kb.inline_keyboard.extend([[InlineKeyboardButton(text=_('💬 Задати питання автору'),
+                                                     url=f'https://t.me/{username}')]])
+    new_message = await bot.copy_message(chat_id=ad.group_fk, from_chat_id=ad.group_fk,
+                                         message_id=ad.message_id, reply_markup=kb)
+    await bot.delete_message(chat_id=ad.group_fk, message_id=ad.message_id)
+
+    post_link = f"https://t.me/c/{ad.post_link.split('/')[-2]}/{new_message.message_id}"
+    await AdvertisementService.update_adv_sql(job_id, message_id=new_message.message_id, post_link=post_link)
+
 
 
 async def is_media_count_allowed(photos_id, videos_id, messages, reset_to_auction_menu_kb):
@@ -444,25 +455,6 @@ async def generate_chats_kb(user_chats):
     return InlineKeyboardMarkup(
         inline_keyboard=[[InlineKeyboardButton(text=chat.chat_name, callback_data=chat.chat_id)] for chat in
                          user_chats])
-
-
-# async def create_monetization_kb(subscription: GroupSubscriptionPlan, chat_id):
-#     kb_builder = InlineKeyboardBuilder()
-#     auction_payment_btn = InlineKeyboardButton(text='Активувати платні лоти',
-#                                                callback_data=f'paid_lot:activate:{chat_id}')
-#     ads_payment_btn = InlineKeyboardButton(text='Активувати платні оголошення',
-#                                            callback_data=f'paid_ads:activate:{chat_id}')
-#     if subscription.auction_paid:
-#         auction_payment_btn.text = '❌ Деактивувати платні лоти'
-#         auction_payment_btn.callback_data = f'paid_lot:deactivate:{chat_id}'
-#     if subscription.ads_paid:
-#         ads_payment_btn.text = '❌ Деактивувати платні оголошення'
-#         ads_payment_btn.callback_data = f'paid_ads:deactivate:{chat_id}'
-#
-#     from keyboards.admin_kb import back_to_group_manage_btn
-#     kb_builder.add(auction_payment_btn, ads_payment_btn, back_to_group_manage_btn)
-#     kb_builder.adjust(1)
-#     return kb_builder.as_markup()
 
 
 async def create_monetization_text_and_kb(subscription: GroupSubscriptionPlan, chat_title, chat_id):

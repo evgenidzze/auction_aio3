@@ -1,7 +1,8 @@
 import datetime
+from typing import List
 
 from sqlalchemy import String
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database.models.base import Base
 
@@ -37,6 +38,6 @@ class User(Base):
     partner_referral_token: Mapped[str] = mapped_column(type_=String(255), nullable=True,
                                                         unique=True)  # token of created referral link
     merchant_id: Mapped[str] = mapped_column(type_=String(100), nullable=True, unique=True)  # id of activated merchant
-
+    groups: Mapped[List["UserGroup"]] = relationship('UserGroup', back_populates='user')
     def __repr__(self):
         return f'<User {self.telegram_id}>'

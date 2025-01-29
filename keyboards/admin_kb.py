@@ -22,7 +22,7 @@ back_to_group_manage_btn = InlineKeyboardButton(text="« Назад", callback_d
 unblock_user_btn = InlineKeyboardButton(text='🔑 Розблокувати', callback_data='access_{user_id}_unblock')
 block_user_btn = InlineKeyboardButton(text='🚫 Заблокувати', callback_data='access_{user_id}_block')
 admin_menu_kb = InlineKeyboardBuilder()
-back_my_channels_groups = InlineKeyboardButton(text='« Назад', callback_data='my_channels_groups')
+back_my_channels_groups = InlineKeyboardButton(text='« Назад', callback_data='my_admin_channels_groups')
 back_my_channels_groups_kb = InlineKeyboardMarkup(inline_keyboard=[[back_my_channels_groups]])
 black_list_btn = InlineKeyboardButton(text='🚫 Чорний список', callback_data='deny_user_access')
 payment_on_btn = InlineKeyboardButton(text='Увімкнути оплату', callback_data='on_payment')
@@ -32,7 +32,7 @@ add_group_kb = InlineKeyboardButton(text='🔌 Підключення', callback
 monetization = InlineKeyboardButton(text='💰 Монетизація', callback_data='monetization')
 back_to_monetization = InlineKeyboardButton(text='« Назад', callback_data='monetization')
 
-my_channels_groups_btn = InlineKeyboardButton(text='⚙️ Функціонал', callback_data='my_channels_groups')
+my_channels_groups_btn = InlineKeyboardButton(text='⚙️ Функціонал', callback_data='my_admin_channels_groups')
 
 admin_menu_kb.row(my_channels_groups_btn, add_group_kb).row(monetization, black_list_btn)
 

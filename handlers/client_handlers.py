@@ -20,6 +20,7 @@ from database.services.advertisement_service import AdvertisementService
 from database.services.base import delete_record_by_id
 from database.services.group_channel_service import GroupChannelService
 from database.services.lot_service import LotService
+from database.services.user_group_service import UserGroupService
 from database.services.user_service import UserService
 from utils.aiogram_media_group import media_group_handler
 from utils.config import DEV_ID
@@ -29,7 +30,7 @@ import keyboards.client_kb as client_kb
 from utils.paypal import get_order_status, create_order
 import utils.utils
 
-from handlers.middleware import subscription_group_required, require_username
+from handlers.middleware import require_username, UserNotBlockedFilter, add_to_group_user
 
 locale.setlocale(locale.LC_ALL, 'uk_UA.utf8')
 router = Router()
@@ -39,6 +40,7 @@ callback_query = router.callback_query
 
 
 class FSMClient(StatesGroup):
+    my_group = State()
     lot_group_id = State()
     user_chat_id = State()
     repost_count = State()
@@ -143,6 +145,35 @@ async def other_channels_groups(call: types.CallbackQuery, **kwargs):
     kb.inline_keyboard.extend([[client_kb.back_group_channels_btn]])
     await call.message.edit_text(text=_('Список каналів у яких працює бот:'),
                                  reply_markup=kb)
+
+
+@callback_query(F.data == 'my_channels_groups')
+async def my_channels_groups(call: types.CallbackQuery, state: FSMContext, **kwargs):
+    my_chats = await UserGroupService.get_user_groups(call.from_user.id)
+    await state.set_state(FSMClient.my_group)
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text=chat.group.chat_name, callback_data=chat.group.chat_id)] for
+                         chat in
+                         my_chats])
+    kb.inline_keyboard.extend([[client_kb.back_group_channels_btn]])
+    await call.message.edit_text(text=_('Список каналів у яких працює бот:'),
+                                 reply_markup=kb)
+
+
+@callback_query(FSMClient.my_group)
+async def my_group_settings(call: types.CallbackQuery, state: FSMContext):
+    await state.set_state(None)
+    await state.update_data(my_group=call.data)
+    await call.message.edit_text(text='Показати інфу про групу (статуси, підписки і т д)',
+                                 reply_markup=client_kb.client_group_kb.as_markup())
+
+
+@callback_query(F.data == 'del_client_group')
+async def del_client_group(call: types.CallbackQuery, state: FSMContext):
+    fsm_data = await state.get_data()
+    my_group = fsm_data.get('my_group')
+    await UserGroupService.delete_record(user_id=call.from_user.id, group_id=my_group)
+    await call.message.edit_text(text='✅ Групу видалено зі списку', reply_markup=client_kb.main_kb)
 
 
 ########################################################################################################################
@@ -417,8 +448,9 @@ async def adv_publish(message, state, **kwargs):
         reply_markup=client_kb.main_kb)
 
 
-@callback_query(F.data.startswith('bid'))
+@callback_query(UserNotBlockedFilter(), F.data.startswith('bid'))
 @require_username
+@add_to_group_user
 async def make_bid(message: types.CallbackQuery, **kwargs):
     bid_data = message.data.split('_')
     lot_id = bid_data[2]
@@ -429,11 +461,11 @@ async def make_bid(message: types.CallbackQuery, **kwargs):
         last_bidder_id = lot.bidder_telegram_id
         bid_count = lot.bid_count
         currency = lot.currency
-        group_id = lot.group_id
+        group_id = lot.group_fk
 
         user = await UserService.get_user(owner_id)
         anti_sniper_time: datetime.time = user.anti_sniper
-        if str(message.from_user.id) == lot.owner_telegram_id and message.from_user.id != DEV_ID:
+        if str(message.from_user.id) == lot.owner_telegram_id and str(message.from_user.id) != DEV_ID:
             await message.answer(text=_('❌ На свій лот не можна робити ставку.'))
             return
         job = scheduler.get_job(f'lot_{lot_id}')
@@ -525,7 +557,8 @@ async def show_ad(message: types.CallbackQuery, state: FSMContext, **kwargs):
     await utils.utils.send_advert(message.from_user.id, message.from_user.id, description, city, video_id, photo_id,
                                   under_moderation=not approved)
     await state.set_state(None)
-    await message.message.answer(text=_('Бажаєте видалити оголошення?'), reply_markup=client_kb.delete_ad_kb)
+    await message.message.answer(text=_('Бажаєте видалити чи змінити опис оголошення?'),
+                                 reply_markup=client_kb.delete_ad_kb)
 
 
 @callback_query(F.data == 'change_media')
@@ -648,7 +681,6 @@ async def set_new_city(message: types.Message, state: FSMContext, **kwargs):
 async def delete_lot(call: types.CallbackQuery, state: FSMContext, **kwargs):
     fsm_data = await state.get_data()
     lot_id = fsm_data.get('change_lot')
-    group_id = fsm_data.get('adv_group_id')
     lot = await LotService.get_lot(lot_id)
     accept_btn = deepcopy(client_kb.accept_lot_deletion_btn)
     accept_btn.callback_data = f'lot_deletion_accept_{lot_id}'
@@ -657,8 +689,7 @@ async def delete_lot(call: types.CallbackQuery, state: FSMContext, **kwargs):
     kb = InlineKeyboardMarkup(inline_keyboard=[[decline_btn, accept_btn]])
     if lot.lot_link:
         await call.message.edit_text(text=_('✅ Запит на видалення створено.'))
-        group_data = await GroupChannelService.get_group_record(group_id)
-        await bot.send_message(chat_id=group_data.owner_telegram_id, # TODO: неспрацював запит на видалення.
+        await bot.send_message(chat_id=lot.group.owner_telegram_id,
                                text=_('<b>⚠️ Користувач {url} хоче видалити лот:\n</b>'
                                       '{lot_link}').format(url=call.from_user.url, lot_link=lot.lot_link),
                                reply_markup=kb)
@@ -674,7 +705,7 @@ async def delete_ad(call: types.CallbackQuery, state: FSMContext, **kwargs):
     ad = await AdvertisementService.get_adv(ad_id)
     if ad.post_link:
         try:
-            await bot.delete_message(chat_id=ad.group_id, message_id=ad.message_id)
+            await bot.delete_message(chat_id=ad.group_fk, message_id=ad.message_id)
         except:
             pass
 
@@ -735,7 +766,7 @@ async def accept_lot(call: types.CallbackQuery, state: FSMContext, **kwargs):
         currency = lot.currency
         owner_id = lot.owner_telegram_id
         photos_link = lot.photos_link
-        group_id = lot.group_id
+        group_id = lot.group_fk
         if not scheduler.get_job(f'lot_{new_lot_id}'):
             msg = await utils.utils.send_post(owner_id, group_id, photo_id, video_id, description, start_price,
                                               price_steps, currency=currency, city=city, lot_id=new_lot_id,
@@ -769,6 +800,7 @@ async def accept_lot(call: types.CallbackQuery, state: FSMContext, **kwargs):
 async def accept_adv(call: types.CallbackQuery, state: FSMContext, **kwargs):
     accept = call.data.split('_')
     new_adv_id = accept[-1]
+    await state.set_state(None)
     adv = await AdvertisementService.get_adv(new_adv_id)
     if adv:
         video_id = adv.video_id
@@ -778,7 +810,7 @@ async def accept_adv(call: types.CallbackQuery, state: FSMContext, **kwargs):
         owner_id = adv.owner_telegram_id
         post_per_day = adv.post_per_day
         photos_link = adv.photos_link
-        group_id = adv.group_id
+        group_id = adv.group_fk
         owner = await bot.get_chat(owner_id)
 
         if not scheduler.get_job(f'adv_{new_adv_id}'):
@@ -820,7 +852,7 @@ async def accept_adv(call: types.CallbackQuery, state: FSMContext, **kwargs):
                                                       desc=description[:15],
                                                       channel_link=channel.invite_link,
                                                       channel_name=channel.title)
-            await call.message.edit_caption(caption=text, reply_markup=client_kb.main_kb)
+            await call.message.answer(text=text, reply_markup=client_kb.main_kb)
             await bot.send_message(chat_id=owner_id, text=text, reply_markup=client_kb.main_kb)
         else:
             await call.answer(text=_('Оголошення вже опубліковано.'))
@@ -884,7 +916,7 @@ async def lot_deletion(call: types.CallbackQuery, **kwargs):
             await delete_record_by_id(lot_id, database.models.lot.Lot)
             try:
                 scheduler.remove_job(f'lot_{lot_id}')
-                await bot.delete_message(chat_id=lot.group_id, message_id=lot.message_id)
+                await bot.delete_message(chat_id=lot.group_fk, message_id=lot.message_id)
             except:
                 ...
         elif action == 'decline':
@@ -916,7 +948,6 @@ async def new_sniper_time(call: types.CallbackQuery, state: FSMContext, **kwargs
 
 @callback_query(FSMClient.adv_sub_seconds)
 async def create_adv_sub(call: types.CallbackQuery, state: FSMContext, **kwargs):
-    fsm_data = await state.get_data()
     user = await UserService.get_user(call.from_user.id)
     if user.user_adv_token:
         status = await get_order_status(user.user_adv_token)
@@ -971,16 +1002,13 @@ async def change_desc_exist(call: types.CallbackQuery, state: FSMContext, **kwar
 async def request_new_desc(message: types.Message, state: FSMContext, **kwargs):
     fsm_data = await state.get_data()
     object_type = fsm_data.get('object_type')
-    group_id = fsm_data.get('adv_group_id')
     await state.set_state(None)
     await message.answer(text=_('✅ Очікуйте підтвердження модератора.'), reply_markup=client_kb.main_kb)
-
-    group_data = await GroupChannelService.get_group_record(group_id)
-    if object_type == 'adv':
+    if object_type == 'ad':
         obj_id = fsm_data.get('change_ad')
         await AdvertisementService.update_adv_sql(obj_id, new_text=message.text)
         ad = await AdvertisementService.get_adv(obj_id)
-        await utils.utils.send_advert(user_id=message.from_user.id, send_to_id=group_data.owner_telegram_id,
+        await utils.utils.send_advert(user_id=message.from_user.id, send_to_id=ad.group.owner_telegram_id,
                                       description=ad.description,
                                       city=ad.city,
                                       video_id=ad.video_id, photo_id=ad.photo_id,
@@ -989,117 +1017,112 @@ async def request_new_desc(message: types.Message, state: FSMContext, **kwargs):
         obj_id = fsm_data.get('change_lot')
         await LotService.update_lot_sql(obj_id, new_text=message.text)
         lot = await LotService.get_lot(obj_id)
-        await utils.utils.send_post(message.from_user.id, group_data.owner_telegram_id, lot.photo_id, lot.video_id,
+        await utils.utils.send_post(message.from_user.id, lot.group.owner_telegram_id, lot.photo_id, lot.video_id,
                                     lot.description,
                                     lot.start_price,
                                     lot.price_steps, currency=lot.currency, city=lot.city, lot_id=obj_id,
                                     change_text=True, new_desc=lot.new_text)
 
 
-@callback_query(F.data.startswith('edit_new_text'))
-async def edit_new_text(call: types.CallbackQuery, state: FSMContext, **kwargs):
-    obj_type = call.data.split(':')[-1]
-    obj_id = call.data.split(':')[-3]
-    action = call.data.split(':')[-2]
+@callback_query(F.data.startswith('edit_ad_text'))
+async def edit_ad_text(call: types.CallbackQuery, state: FSMContext, **kwargs):
+    obj_id = call.data.split(':')[-2]
+    action = call.data.split(':')[-1]
     if action == 'accept':
-        if obj_type == 'lot':
-            lot = await LotService.get_lot(obj_id)
-            if lot.new_text:
-                user = await UserService.get_user(lot.owner_telegram_id)
-                user_tg = await bot.get_chat(user.telegram_id)
-                kb = await utils.utils.create_price_step_kb(lot.price_steps, obj_id, lot.currency)
-                kb.inline_keyboard.extend([[InlineKeyboardButton(text='⏳', callback_data=f'time_left_lot_{obj_id}')]])
-                kb.inline_keyboard.extend(
-                    [[InlineKeyboardButton(text=_('💬 Задати питання автору', locale=user.language),
-                                           url=f'https://t.me/{user_tg.username}')]])
+        ad = await AdvertisementService.get_adv(obj_id)
 
-                await LotService.update_lot_sql(obj_id, description=lot.new_text, new_text=None)
-                try:
-                    caption = _("<b>{description}</b>\n\n"
-                                "🏙 <b>Місто:</b> {city}\n\n"
-                                "👇 <b>Ставки учасників:</b>\n\n"
-                                "💰 <b>Стартова ціна:</b> {start_price} {currency}\n"
-                                "⏱ <b>Антиснайпер</b> {anti_sniper} хв.\n")
-                    if lot.bidder_telegram_id:
-                        bidder_name = await bot.get_chat(lot.bidder_telegram_id)
-                        caption = await utils.utils.new_bid_caption(caption, bidder_name.first_name, lot.last_bid,
-                                                                    lot.currency, user.language, lot.bid_count)
-                    await bot.edit_message_caption(chat_id=lot.group_id, message_id=lot.message_id,
-                                                   caption=caption.format(
-                                                       description=lot.new_text, city=lot.city,
-                                                       start_price=lot.start_price, currency=lot.currency,
-                                                       anti_sniper=user.anti_sniper.minute, bid_count=lot.bid_count,
-                                                       price=lot.last_bid),
-                                                   reply_markup=kb)
-                except Exception:
-                    await call.answer(text='Запит вже оброблено.')
-                    return
-                await bot.send_message(chat_id=user.telegram_id, text=_(
-                    "✅ Модератор підтвердив зміну опису лоту.\n\n<a href='{lot_post}'><b>👉 Перейти до лоту.</b></a>",
-                    locale=user.language).format(
-                    lot_post=lot.lot_link), reply_markup=client_kb.main_kb)
-            else:
-                await call.answer(text='Запит вже оброблено.')
-                return
-        elif obj_type == 'adv':
-            ad = await AdvertisementService.get_adv(obj_id)
-
-            if ad.new_text:
-                user = await UserService.get_user(ad.owner_telegram_id)
-                user_tg = await bot.get_chat(user.telegram_id)
-                kb = InlineKeyboardMarkup(inline_keyboard=[])
-                kb.inline_keyboard.extend([[InlineKeyboardButton(text='⏳', callback_data=f'time_left_adv_{obj_id}')]])
-                kb.inline_keyboard.extend(
-                    [[InlineKeyboardButton(text=_('💬 Задати питання автору', locale=user.language),
-                                           url=f'https://t.me/{user_tg.username}')]])
-                await AdvertisementService.update_adv_sql(obj_id, description=ad.new_text, new_text=None)
-                caption = _("<b>{description}</b>\n\n"
-                            "🏙 <b>Місто:</b> {city}\n", locale=user.language).format(description=ad.new_text,
-                                                                                     city=ad.city)
-                try:
-                    await bot.edit_message_caption(chat_id=ad.group_id, message_id=ad.message_id, caption=caption,
-                                                   reply_markup=kb)
-                except Exception:
-                    await call.answer(text='Запит вже оброблено.')
-                    return
-                await bot.send_message(chat_id=user.telegram_id, text=_(
-                    "✅ Модератор підтвердив зміну опису оголошення.\n\n<a href='{lot_post}'><b>👉 Перейти до оголошення.</b></a>",
-                    locale=user.language).format(
-                    lot_post=ad.post_link), reply_markup=client_kb.main_kb)
-            else:
-                await call.answer(text='Запит вже оброблено.')
-                return
-    else:
-        if obj_type == 'lot':
-            lot = await LotService.get_lot(obj_id)
-            user = await UserService.get_user(lot.owner_telegram_id)
-            if lot.new_text:
-                await LotService.update_lot_sql(obj_id, new_text=None)
-                await bot.send_message(chat_id=lot.owner_telegram_id,
-                                       text=_(
-                                           '❌ Запит на зміну опису для лоту <a href="{lot_link}"><b>{lot_desc}</b></a> відхилено.',
-                                           locale=user.language).format(
-                                           lot_link=lot.lot_link, lot_desc=lot.description),
-                                       reply_markup=client_kb.main_kb,
-                                       )
-                await call.answer(text='✅ Запит на зміну опису відхилено')
-            else:
-                await call.answer('Запит вже оброблено.')
-        elif obj_type == 'adv':
-            ad = await AdvertisementService.get_adv(obj_id)
+        if ad.new_text:
             user = await UserService.get_user(ad.owner_telegram_id)
-            if ad.new_text:
-                await AdvertisementService.update_adv_sql(obj_id, new_text=None)
-                await bot.send_message(chat_id=ad.owner_telegram_id,
-                                       text=_(
-                                           '❌ Запит на зміну опису для оголошення <a href="{lot_link}"><b>{lot_desc}</b></a> відхилено.',
-                                           locale=user.language).format(
-                                           lot_link=ad.post_link, lot_desc=ad.description),
-                                       reply_markup=client_kb.main_kb,
-                                       )
-                await call.answer(text='✅ Запит на зміну опису відхилено')
-            else:
-                await call.answer('Запит вже оброблено.')
+            user_tg = await bot.get_chat(user.telegram_id)
+            kb = InlineKeyboardMarkup(inline_keyboard=[])
+            kb.inline_keyboard.extend([[InlineKeyboardButton(text='⏳', callback_data=f'time_left_adv_{obj_id}')]])
+            kb.inline_keyboard.extend(
+                [[InlineKeyboardButton(text=_('💬 Задати питання автору', locale=user.language),
+                                       url=f'https://t.me/{user_tg.username}')]])
+            await AdvertisementService.update_adv_sql(obj_id, description=ad.new_text, new_text=None)
+            caption = _("<b>{description}</b>\n\n"
+                        "🏙 <b>Місто:</b> {city}\n", locale=user.language).format(description=ad.new_text,
+                                                                                 city=ad.city)
+            try:
+                await bot.edit_message_caption(chat_id=ad.group_fk, message_id=ad.message_id, caption=caption,
+                                               reply_markup=kb)
+            except Exception:
+                await call.answer(text='Запит вже оброблено.')
+                return
+            await bot.send_message(chat_id=user.telegram_id, text=_(
+                "✅ Модератор підтвердив зміну опису оголошення.\n\n<a href='{lot_post}'><b>👉 Перейти до оголошення.</b></a>",
+                locale=user.language).format(
+                lot_post=ad.post_link), reply_markup=client_kb.main_kb)
+        else:
+            await call.answer(text='Запит вже оброблено.')
+            return
+    else:
+        ad = await AdvertisementService.get_adv(obj_id)
+        user = await UserService.get_user(ad.owner_telegram_id)
+        if ad.new_text:
+            await AdvertisementService.update_adv_sql(obj_id, new_text=None)
+            await bot.send_message(chat_id=ad.owner_telegram_id,
+                                   text=_(
+                                       '❌ Запит на зміну опису для оголошення <a href="{lot_link}"><b>{lot_desc}</b></a> відхилено.',
+                                       locale=user.language).format(
+                                       lot_link=ad.post_link, lot_desc=ad.description),
+                                   reply_markup=client_kb.main_kb,
+                                   )
+            await call.answer(text='✅ Запит на зміну опису відхилено')
+        else:
+            await call.answer('Запит вже оброблено.')
+
+
+@callback_query(F.data.startswith('edit_lot_text'))
+async def edit_lot_text(call: types.CallbackQuery, state: FSMContext, **kwargs):
+    obj_id = call.data.split(':')[-2]
+    action = call.data.split(':')[-1]
+    await state.set_state(None)
+    if action == 'accept':
+        lot = await LotService.get_lot(obj_id)
+        if lot.new_text:  # якщо ще не підтверджений
+            user = await UserService.get_user(lot.owner_telegram_id)
+            caption, kb = await utils.utils.create_lot_caption_and_kb(user_id=user.telegram_id, moder_review=False,
+                                                                      lot_id=obj_id, description=lot.new_text,
+                                                                      start_price=lot.start_price, city=lot.city,
+                                                                      under_moderation=False,
+                                                                      new_desc=None, photos_link=lot.photos_link,
+                                                                      change_text=None, photos=None,
+                                                                      videos=None, price_steps=lot.price_steps,
+                                                                      currency=lot.currency)
+            await LotService.update_lot_sql(obj_id, description=lot.new_text, new_text=None)
+            try:
+                if lot.bidder_telegram_id:
+                    bidder_name = await bot.get_chat(lot.bidder_telegram_id)
+                    caption = await utils.utils.new_bid_caption(caption, bidder_name.first_name, lot.last_bid,
+                                                                lot.currency, user.language, lot.bid_count)
+                await bot.edit_message_caption(chat_id=lot.group_fk, message_id=lot.message_id, caption=caption,
+                                               reply_markup=kb)
+            except Exception:
+                await call.answer(text='Запит вже оброблено.')
+                return
+            await bot.send_message(chat_id=user.telegram_id, text=_(
+                "✅ Модератор підтвердив зміну опису лоту.\n\n<a href='{lot_post}'><b>👉 Перейти до лоту.</b></a>",
+                locale=user.language).format(
+                lot_post=lot.lot_link), reply_markup=client_kb.main_kb)
+        else:
+            await call.answer(text='Запит вже оброблено.')
+            return
+    else:
+        lot = await LotService.get_lot(obj_id)
+        user = await UserService.get_user(lot.owner_telegram_id)
+        if lot.new_text:
+            await LotService.update_lot_sql(obj_id, new_text=None)
+            await bot.send_message(chat_id=lot.owner_telegram_id,
+                                   text=_(
+                                       '❌ Запит на зміну опису для лоту <a href="{lot_link}"><b>{lot_desc}</b></a> відхилено.',
+                                       locale=user.language).format(
+                                       lot_link=lot.lot_link, lot_desc=lot.description),
+                                   reply_markup=client_kb.main_kb,
+                                   )
+            await call.answer(text='✅ Запит на зміну опису відхилено')
+        else:
+            await call.answer('Запит вже оброблено.')
 
 
 @callback_query(FSMClient.repost_count_answer)
@@ -1131,4 +1154,3 @@ async def save_repost_count(call: types.CallbackQuery, state: FSMContext, **kwar
     await utils.utils.send_post_fsm(fsm_data, call.from_user.id, is_ad=True)
     await bot.send_message(chat_id=call.from_user.id, text=text, reply_markup=kb,
                            reply_to_message_id=last_message_id)
-

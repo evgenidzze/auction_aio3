@@ -1,3 +1,5 @@
+from typing import List
+
 from sqlalchemy import String, ForeignKey, Enum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -40,6 +42,9 @@ class ChannelGroup(Base):
     chat_link: Mapped[str] = mapped_column(nullable=True, type_=String(255), default=None, server_default=None)
     subscription_plan: Mapped["GroupSubscriptionPlan"] = relationship('GroupSubscriptionPlan', uselist=False,
                                                                       back_populates='group', passive_deletes=True)
+    lot: Mapped[List["Lot"]] = relationship(back_populates='group')
+    ad: Mapped[List["Advertisement"]] = relationship(back_populates='group')
+    users: Mapped[List["UserGroup"]] = relationship('UserGroup', back_populates='group')
 
     def __repr__(self):
-        return f'<ChannelGroup {self.id}>'
+        return f'<ChannelGroup {self.chat_id}>'

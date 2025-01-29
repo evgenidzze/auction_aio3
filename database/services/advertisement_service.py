@@ -1,5 +1,7 @@
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+from sqlalchemy.orm import selectinload
+
 from database.models.advertisement import Advertisement
 from database.services.base import async_session, BaseService
 from utils.config import DB_PASS, DB_NAME, DB_HOST, DB_USER, PORT
@@ -13,7 +15,7 @@ class AdvertisementService(BaseService):
         """
         Оновлює інформацію про рекламу на основі її унікального ID.
         """
-        async with await AdvertisementService.get_session() as session:
+        async with async_session() as session:
             stmt = update(Advertisement).where(Advertisement.id == adv_id).values(kwargs)
             await session.execute(stmt)
             await session.commit()
@@ -23,7 +25,7 @@ class AdvertisementService(BaseService):
         """
         Створює новий запис для реклами у системі.
         """
-        async with await AdvertisementService.get_session() as session:
+        async with async_session() as session:
             new_adv = Advertisement(
                 owner_telegram_id=owner_id,
                 description=fsm_data.get('description'),
@@ -32,7 +34,7 @@ class AdvertisementService(BaseService):
                 city=fsm_data.get('city'),
                 photos_link=fsm_data.get('photos_link'),
                 post_per_day=fsm_data.get('repost_count'),
-                group_id=fsm_data.get('adv_group_id')
+                group_fk=fsm_data.get('adv_group_id')
             )
             session.add(new_adv)
             await session.commit()
@@ -44,8 +46,8 @@ class AdvertisementService(BaseService):
         """
         Отримує дані реклами з бази за її унікальним ID.
         """
-        async with await AdvertisementService.get_session() as session:
-            stmt = select(Advertisement).where(Advertisement.id == adv_id)
+        async with async_session() as session:
+            stmt = select(Advertisement).options(selectinload(Advertisement.group)).where(Advertisement.id == adv_id)
             execute = await session.execute(stmt)
             res = execute.fetchone()
             if res:

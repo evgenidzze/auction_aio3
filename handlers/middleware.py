@@ -1,28 +1,56 @@
 import logging
-from typing import Dict, Any, Callable, Awaitable
-from aiogram import types, Bot, BaseMiddleware
+from typing import Dict, Any
+from aiogram import types, Bot
 from aiogram.client.session.middlewares.base import BaseRequestMiddleware, NextRequestMiddlewareType
-from aiogram.dispatcher.event.bases import CancelHandler
-from aiogram.exceptions import TelegramBadRequest
+from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
+from aiogram.filters import BaseFilter
 from aiogram.methods.base import TelegramType, Response, TelegramMethod
-from aiogram.types import InlineKeyboardMarkup, TelegramObject
+from aiogram.types import InlineKeyboardMarkup, TelegramObject, CallbackQuery
 from aiogram.utils.i18n import gettext as _, I18nMiddleware
-
-from utils.config import USERNAME_BOT
-
-
 from database.services.group_subscription_plan_service import GroupSubscriptionPlanService
+from database.services.user_group_service import UserGroupService
 from database.services.user_service import UserService
 from utils.create_bot import i18n
 from utils.utils import translate_kb
 from keyboards.client_kb import main_kb
-
 
 from functools import wraps
 import functools
 from datetime import datetime
 from typing import Callable, List
 from aiogram.types import Message
+
+
+class UserNotBlockedFilter(BaseFilter):
+    async def __call__(self, callback_query: CallbackQuery) -> bool:
+        bot = callback_query.bot
+        user_id = callback_query.from_user.id
+        try:
+            # Перевіряємо, чи бот має доступ до чату користувача
+            await bot.send_chat_action(user_id, "typing")
+            return True  # Користувач не заблокував бота
+        except TelegramForbiddenError:
+            # Користувач заблокував бота
+            await callback_query.answer(
+                "Щоб приймати участь в аукціоні, активуйте бота. Посилання на бота є в кінці кожного лота та оголошення.",
+                show_alert=True)
+            return False
+
+
+# class UserGroupFilter(BaseFilter):
+#     async def __call__(self, callback_query: CallbackQuery) -> bool:
+#         await UserGroupService.create_user_group(user_id=callback_query.from_user.id,
+#                                                  group_id=callback_query.message.chat.id)
+#         return True
+def add_to_group_user(func):
+    @wraps(func)
+    async def wrapper(callback: CallbackQuery, *args, **kwargs):
+        await UserGroupService.create_user_group(user_id=callback.from_user.id,
+                                                 group_id=callback.message.chat.id)
+
+        return await func(callback, *args, **kwargs)
+
+    return wrapper
 
 
 class ChangeLanguageMiddleware(BaseRequestMiddleware):
@@ -99,10 +127,10 @@ def require_username(func):
     async def wrapper(*args, **kwargs):
         """Якщо username відсутній, відправляємо повідомлення з інструкцією."""
         answer_warning_username_text = _("Щоб користуватись ботом потрібно створити або зробити публічним юзернейм"
-                                " у вашому телеграм акаунті.")
+                                         " у вашому телеграм акаунті.")
         answer_warning_username_url = _(
-                            "\n\n[Читати інструкцію]({url})"
-                        ).format(url='https://telegra.ph/How-to-Set-a-Username-in-Telegram-01-27')
+            "\n\n[Читати інструкцію]({url})"
+        ).format(url='https://telegra.ph/How-to-Set-a-Username-in-Telegram-01-27')
 
         for arg in args:
             if isinstance(arg, Message):
@@ -131,4 +159,5 @@ def require_username(func):
                 break
         # Якщо юзернейм є, виконуємо основну функцію
         return await func(*args, **kwargs)
+
     return wrapper

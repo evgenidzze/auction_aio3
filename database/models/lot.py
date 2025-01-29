@@ -1,5 +1,5 @@
 from sqlalchemy import String, ForeignKey, Integer, Text, TIMESTAMP, text, Boolean
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database.models.base import Base
 
@@ -30,7 +30,7 @@ class Lot(Base):
         currency (str): Валюта лота.
         city (str): Місто лота.
         photos_link (str): Посилання на фото лота.
-        new_text (str): Новий текст лота.
+        new_text (str): Новий текст лота, який очікує на підтвердження модератором.
     """
     __tablename__ = 'Lot'
     id: Mapped[int] = mapped_column(primary_key=True, nullable=False, autoincrement=True)
@@ -56,5 +56,6 @@ class Lot(Base):
     photos_link: Mapped[str] = mapped_column(String(255), nullable=True)
     bid_count: Mapped[int] = mapped_column(Integer, nullable=True, default=0)
     new_text: Mapped[str] = mapped_column(Text, nullable=True)
-    group_id: Mapped[str] = mapped_column(String(45), nullable=False)
+    group_fk: Mapped[str] = mapped_column(ForeignKey('ChannelGroup.chat_id', ondelete='CASCADE'))
+    group: Mapped["ChannelGroup"] = relationship(back_populates="lot")
 
