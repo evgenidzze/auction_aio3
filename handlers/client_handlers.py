@@ -658,7 +658,7 @@ async def delete_lot(call: types.CallbackQuery, state: FSMContext, **kwargs):
     if lot.lot_link:
         await call.message.edit_text(text=_('✅ Запит на видалення створено.'))
         group_data = await GroupChannelService.get_group_record(group_id)
-        await bot.send_message(chat_id=group_data.owner_telegram_id, # TODO: неспрацював запит на видалення.
+        await bot.send_message(chat_id=group_data.owner_telegram_id,
                                text=_('<b>⚠️ Користувач {url} хоче видалити лот:\n</b>'
                                       '{lot_link}').format(url=call.from_user.url, lot_link=lot.lot_link),
                                reply_markup=kb)
@@ -1131,4 +1131,3 @@ async def save_repost_count(call: types.CallbackQuery, state: FSMContext, **kwar
     await utils.utils.send_post_fsm(fsm_data, call.from_user.id, is_ad=True)
     await bot.send_message(chat_id=call.from_user.id, text=text, reply_markup=kb,
                            reply_to_message_id=last_message_id)
-
