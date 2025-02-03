@@ -37,7 +37,7 @@ class ChannelGroup(Base):
     # id: Mapped[int] = mapped_column(primary_key=True, nullable=False, autoincrement=True, unique=True)
     chat_id: Mapped[str] = mapped_column(primary_key=True, type_=String(45), nullable=False, unique=True)
     chat_name: Mapped[str] = mapped_column(nullable=True, type_=String(255))
-    owner_telegram_id: Mapped[str] = mapped_column(ForeignKey('User.telegram_id'), nullable=False)
+    owner_telegram_id: Mapped[str] = mapped_column(ForeignKey('User.telegram_id', ondelete='CASCADE'), nullable=False)
     chat_type: Mapped[GroupType] = mapped_column(Enum(GroupType), nullable=False)
     chat_link: Mapped[str] = mapped_column(nullable=True, type_=String(255), default=None, server_default=None)
     subscription_plan: Mapped["GroupSubscriptionPlan"] = relationship('GroupSubscriptionPlan', uselist=False,

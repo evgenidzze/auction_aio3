@@ -10,8 +10,8 @@ class UserGroup(Base):
     """
     __tablename__ = 'UserGroup'
     id: Mapped[int] = mapped_column(primary_key=True, nullable=False, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey('User.telegram_id'), nullable=False)  # ForeignKey to User
-    group_id: Mapped[int] = mapped_column(ForeignKey('ChannelGroup.chat_id'),
+    user_id: Mapped[int] = mapped_column(ForeignKey('User.telegram_id', ondelete='CASCADE'), nullable=False)  # ForeignKey to User
+    group_id: Mapped[int] = mapped_column(ForeignKey('ChannelGroup.chat_id', ondelete='CASCADE'),
                                           nullable=False)  # ForeignKey to ChannelGroup
 
     user: Mapped["User"] = relationship('User', back_populates='groups')  # Bi-directional relationship

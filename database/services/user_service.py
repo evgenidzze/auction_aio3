@@ -29,7 +29,7 @@ class UserService:
         :return: Об'єкт User або None, якщо запис не знайдено.
         """
         async with async_session() as session:
-            stmt = select(User).where(User.telegram_id == user_id)
+            stmt = select(User).options(selectinload(User.groups)).where(User.telegram_id == user_id)
             res = await session.execute(stmt)
             user = res.fetchone()
             if user:

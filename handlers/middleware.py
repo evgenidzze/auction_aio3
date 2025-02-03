@@ -37,11 +37,6 @@ class UserNotBlockedFilter(BaseFilter):
             return False
 
 
-# class UserGroupFilter(BaseFilter):
-#     async def __call__(self, callback_query: CallbackQuery) -> bool:
-#         await UserGroupService.create_user_group(user_id=callback_query.from_user.id,
-#                                                  group_id=callback_query.message.chat.id)
-#         return True
 def add_to_group_user(func):
     @wraps(func)
     async def wrapper(callback: CallbackQuery, *args, **kwargs):

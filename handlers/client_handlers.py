@@ -8,7 +8,7 @@ from typing import List
 
 from aiogram import Router, types, F
 from aiogram.enums import ContentType
-from aiogram.filters import CommandStart, Command
+from aiogram.filters import CommandStart, Command, CommandObject
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -80,14 +80,26 @@ class FSMClient(StatesGroup):
 #                                              MENU CLIENT COMMANDS                                                    #
 ########################################################################################################################
 
-
-@message(CommandStart(), utils.utils.IsPrivateChatFilter())
-async def start(message: types.Message, state: FSMContext, **kwargs):
+@message(CommandStart())
+@message(CommandStart(deep_link=True), utils.utils.IsPrivateChatFilter())
+async def start(message: types.Message, state: FSMContext, command: CommandObject, **kwargs):
     """/start"""
     for job in scheduler.get_jobs():
         logging.info(f'{job.id}-{job}-{job.kwargs}')
     await state.set_state(FSMClient.language)
     text = _('<b>Оберіть мову / Choose a language:</b>')
+    user = await UserService.get_user(message.from_user.id)
+    if command.args:  # якщо юзер переходить по діплінку з групи
+        user_groups = [group.group_id for group in user.groups]
+        if user and command.args not in user_groups:
+            await UserGroupService.create_user_group(message.from_user.id, command.args)
+            group = await GroupChannelService.get_group_record(command.args)
+            await bot.send_message(chat_id=message.from_user.id, text=_(
+                "✅ Вітаю, група <a href='{chat_link}'><b>{group_name}</b></a> тепер є у списку ваших груп для публікації.",
+                locale=user.language).format(
+                chat_link=group.chat_link,
+                group_name=group.chat_name), disable_web_page_preview=True)
+
     if isinstance(message, types.Message):
         await message.answer(text=text,
                              reply_markup=client_kb.language_kb)
@@ -101,6 +113,8 @@ async def start(message: types.Message, state: FSMContext, **kwargs):
 @message(Command('main_menu'), utils.utils.IsPrivateChatFilter())
 async def main_menu(call, state: FSMContext, **kwargs):
     """/main_menu"""
+    # data = await state.get_data()
+
     clean_text = "Вітаю, <b>{first_name}!</b><a href='https://telegra.ph/file/3f6168cc5f94f115331ac.png'>⠀</a>\n"
     text = _(clean_text).format(first_name=call.from_user.username)
     if isinstance(call, types.CallbackQuery):
@@ -1090,6 +1104,7 @@ async def edit_lot_text(call: types.CallbackQuery, state: FSMContext, **kwargs):
                                                                       change_text=None, photos=None,
                                                                       videos=None, price_steps=lot.price_steps,
                                                                       currency=lot.currency)
+
             await LotService.update_lot_sql(obj_id, description=lot.new_text, new_text=None)
             try:
                 if lot.bidder_telegram_id:
