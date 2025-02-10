@@ -15,6 +15,7 @@ from database.models.channel_group import ChannelGroup
 from database.models.group_subscription_plan import GroupSubscriptionPlan
 from database.models.lot import Lot
 from database.models.user import User
+from database.models.user_group import UserGroup
 from utils.config import DB_NAME, DB_HOST, DB_PASS, DB_USER
 
 # this is the Alembic Config object, which provides

@@ -25,7 +25,7 @@ class GroupSubscriptionPlanService:
                                   ads_paid,
                                   ads_token,
                                   free_trial):
-        async with await GroupSubscriptionPlanService.get_session() as session:
+        async with async_session() as session:
             stmt_subscription_plan = insert(GroupSubscriptionPlan).values(
                 group_fk=chat_id,
                 auction_sub_time=auction_sub_time,

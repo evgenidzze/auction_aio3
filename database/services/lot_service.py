@@ -1,11 +1,7 @@
 from sqlalchemy import select, update
-from sqlalchemy.orm import selectinload
-from sqlalchemy.dialects.mysql import insert
-
-from database.models.channel_group import ChannelGroup
-from database.models.group_subscription_plan import GroupSubscriptionPlan
 from database.models.lot import Lot
 from database.services.base import async_session
+from sqlalchemy.orm import selectinload
 
 class LotService:
     _session = None  # змінна для зберігання сесії
@@ -65,7 +61,7 @@ class LotService:
         :return: Об'єкт Lot або None, якщо запис не знайдено.
         """
         async with async_session() as session:
-            stmt = select(Lot).where(Lot.id == lot_id)
+            stmt = select(Lot).options(selectinload(Lot.group)).where(Lot.id == lot_id)
             execute = await session.execute(stmt)
             res = execute.fetchone()
             if res:
@@ -93,7 +89,7 @@ class LotService:
                 city=fsm_data.get('city'),
                 last_bid=fsm_data.get('price'),
                 photos_link=fsm_data.get('photos_link'),
-                group_id=fsm_data.get('lot_group_id')
+                group_fk=fsm_data.get('lot_group_id')
 
             )
             session.add(new_lot)

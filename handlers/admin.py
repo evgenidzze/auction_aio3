@@ -13,7 +13,6 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from database.services.group_channel_service import GroupChannelService
 from database.services.group_subscription_plan_service import GroupSubscriptionPlanService
 from database.services.user_service import UserService
-# from handlers.client_handlers import router
 from utils.create_bot import job_stores, bot, _
 
 from keyboards.admin_kb import reject_to_admin_btn, back_to_admin_btn, \
@@ -28,7 +27,6 @@ from utils.create_bot import scheduler
 from apscheduler.jobstores.base import JobLookupError
 
 TypeSubscription: TypeAlias = Literal['ads', 'auction', 'free_trial']
-
 
 router = Router()
 message = router.message
@@ -386,7 +384,7 @@ def register_admin_handlers(r: Router):
     r.message.register(not_registered_partner, Command('not_registered_partner'))
     r.callback_query.register(admin, F.data == 'admin')  # Меню адміністратора
     r.callback_query.register(change_user_access, F.data.startswith('access'))  # Блокування/Розблокування користувача
-    r.callback_query.register(my_channels_groups, F.data == 'my_channels_groups')  # Пункт меню "Мої групи/канали"
+    r.callback_query.register(my_channels_groups, F.data == 'my_admin_channels_groups')  # Пункт меню "Мої групи/канали"
     r.callback_query.register(deny_user_access, F.data == 'deny_user_access')  # Чорний список
     r.callback_query.register(payment_tumbler, F.data.endswith('_payment'))  # Вимкнути/Увімкнути оплату
     r.callback_query.register(SubscriptionGroupHandler().listening,

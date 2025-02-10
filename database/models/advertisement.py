@@ -1,5 +1,5 @@
 from sqlalchemy import ForeignKey, Text, String, Boolean, Integer
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database.models.base import Base
 
@@ -24,7 +24,7 @@ class Advertisement(Base):
     """
     __tablename__ = 'Advertisement'
     id: Mapped[int] = mapped_column(primary_key=True, nullable=False, autoincrement=True, unique=True)
-    owner_telegram_id: Mapped[str] = mapped_column(ForeignKey('User.telegram_id'), nullable=False)
+    owner_telegram_id: Mapped[str] = mapped_column(ForeignKey('User.telegram_id', ondelete='CASCADE'), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
     photo_id: Mapped[str] = mapped_column(String(255), nullable=True)
     video_id: Mapped[str] = mapped_column(String(255), nullable=True)
@@ -35,4 +35,5 @@ class Advertisement(Base):
     post_link: Mapped[str] = mapped_column(String(255), nullable=True)
     new_text: Mapped[str] = mapped_column(Text, nullable=True)
     post_per_day: Mapped[int] = mapped_column(Integer, nullable=True)
-    group_id: Mapped[str] = mapped_column(String(45), nullable=False)
+    group_fk: Mapped[str] = mapped_column(ForeignKey('ChannelGroup.chat_id', ondelete='CASCADE'))
+    group: Mapped["ChannelGroup"] = relationship(back_populates="ad")

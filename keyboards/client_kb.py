@@ -1,4 +1,5 @@
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 eng_btn = InlineKeyboardButton(text='🇬🇧 English', callback_data='en')
 ua_btn = InlineKeyboardButton(text='🇺🇦 Українська', callback_data='uk')
@@ -54,9 +55,9 @@ delete_lot_btn = InlineKeyboardButton(text='🗑 Видалити лот', callb
 delete_lot_kb = InlineKeyboardMarkup(inline_keyboard=[[change_desc_exist_lot_btn], [delete_lot_btn], [
     InlineKeyboardButton(text='« Назад', callback_data='my_auctions')]])
 
-# change_desc_exist_ad_btn = InlineKeyboardButton(text='🔤 Змінити опис', callback_data='change_desc_exist_ad')
+change_desc_exist_ad_btn = InlineKeyboardButton(text='🔤 Змінити опис', callback_data='change_desc_exist_ad')
 delete_ad_btn = InlineKeyboardButton(text='🗑 Видалити оголошення', callback_data='delete_ad')
-delete_ad_kb = InlineKeyboardMarkup(inline_keyboard=[[delete_ad_btn], [
+delete_ad_kb = InlineKeyboardMarkup(inline_keyboard=[[delete_ad_btn], [change_desc_exist_ad_btn], [
     InlineKeyboardButton(text='« Назад', callback_data='my_ads')]])
 
 back_to_ready_btn = InlineKeyboardButton(text='« Назад', callback_data='back_to_ready')
@@ -96,7 +97,6 @@ anti_kb = InlineKeyboardMarkup(inline_keyboard=[[anti_5_btn, anti_10_btn, anti_1
 # back_to_questions_kb = InlineKeyboardMarkup(inline_keyboard=[[delete_question_btn], [back_to_questions]])
 
 
-
 adv_30_days = InlineKeyboardButton(text='Оформити на 30 днів', callback_data='2592000')
 subscribe_adv_kb = InlineKeyboardMarkup(inline_keyboard=[[adv_30_days], [cancel_btn]])
 
@@ -121,11 +121,12 @@ reset_to_ad_menu_btn = InlineKeyboardButton(text='❌ Відміна', callback_
 back_to_ad_menu_btn = InlineKeyboardButton(text='« Назад', callback_data='ad_menu')
 reset_to_ad_menu_kb = InlineKeyboardMarkup(inline_keyboard=[[reset_to_ad_menu_btn]])
 
-other_channels_groups = InlineKeyboardButton(text='Інші групи/канали', callback_data='other_channels_groups')
-group_channels_kb = InlineKeyboardMarkup(inline_keyboard=[[other_channels_groups], [back_to_main_btn]])
+my_channels_groups = InlineKeyboardButton(text='Мої групи', callback_data='my_channels_groups')
+other_channels_groups = InlineKeyboardButton(text='Інші групи', callback_data='other_channels_groups')
+group_channels_kb = InlineKeyboardMarkup(
+    inline_keyboard=[[my_channels_groups], [other_channels_groups], [back_to_main_btn]])
 
 back_group_channels_btn = InlineKeyboardButton(text='« Назад', callback_data='groups_and_channels')
-
 
 pro_sub_btn = InlineKeyboardButton(text='💎 Pro-підписка', callback_data='create_ad')
 create_advert_btn = InlineKeyboardButton(text='📣 Оголошення', callback_data='ad_menu')
@@ -136,3 +137,8 @@ back_to_main_btn = InlineKeyboardButton(text='« Назад', callback_data='mai
 main_kb = InlineKeyboardMarkup(
     inline_keyboard=[[auction_btn, create_advert_btn], [group_channels_btn], [pro_sub_btn],
                      [help_btn]])
+
+client_group_kb = InlineKeyboardBuilder()
+client_group_kb.button(text='Видалити зі списку', callback_data='del_client_group')
+client_group_kb.button(text='« Назад', callback_data='my_channels_groups')
+client_group_kb.adjust(1)
