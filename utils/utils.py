@@ -53,83 +53,110 @@ class IsMessageType(BaseFilter):
             return True
 
 
-async def lot_ending(job_id, msg_id: types.Message):
+async def lot_ending(job_id: int, *args, **kwargs) -> None:
+    """Handles the ending of an auction lot."""
+    scheduler.remove_job(f'lot_{job_id}')
     lot = await LotService.get_lot(job_id)
 
-    scheduler.remove_job(f'lot_{job_id}')
-    if lot:
-        owner_telegram_id = lot.owner_telegram_id
-        owner_tg = await bot.get_chat(owner_telegram_id)
-        owner = await UserService.get_user(owner_telegram_id)
-        bidder_telegram_id = lot.bidder_telegram_id
-        if bidder_telegram_id:
-            bidder = await UserService.get_user(bidder_telegram_id)
-            winner_tg = await bot.get_chat(bidder_telegram_id)
-            await bot.send_message(chat_id=bidder_telegram_id,
-                                   text=_('🏆 Вітаю! Ви перемогли у аукціоні <b>{desc}</b>\n'
-                                          'Очікуйте повідомлення від продавця.', locale=bidder.language).format(
-                                       desc=lot.description[:25]),
-                                   reply_markup=main_kb)
-            token = await create_order(usd=5)
-            await LotService.update_lot_sql(paypal_token=token, lot_id=job_id)
-            kb = await contact_payment_kb_generate(bidder_telegram_id, token, job_id, owner_locale=owner.language)
-            redis_instance = job_stores.get('default')
-            payment_enabled = redis_instance.redis.get(name='payment')
-            if payment_enabled and payment_enabled.decode('utf-8') == 'on':
-                text = _("🏆 Аукціон <b>{desc}</b> завершено!\n"
-                         "Щоб зв'язатись з переможцем, оплатіть комісію.",
-                         locale=owner.language).format(desc=lot.description[:25])
-                await bot.send_message(owner_telegram_id, text=text, reply_markup=kb, )
+    if not lot:
+        return
 
-            else:
-                text = _("🏆 Аукціон <b>{desc}</b> завершено!\n"
-                         "Можете зв'язатись з переможцем https://t.me/{username}.").format(username=winner_tg.username,
-                                                                                           desc=lot.description[:25])
-                await delete_record_by_id(lot.id, database.models.lot.Lot)
-                await bot.delete_message(chat_id=lot.group_fk, message_id=lot.message_id)
-                await bot.send_message(owner_telegram_id, text=text, )
-                text = _(
-                    "Вітаю, <b>{first_name}!</b><a href='https://telegra.ph/file/5f63d10b734d545a032cc.jpg'>⠀</a>\n").format(
-                    first_name=owner_tg.username)
-                await bot.send_message(owner_telegram_id, text=text, reply_markup=main_kb)
+    owner_tg_chat = await bot.get_chat(lot.owner_telegram_id)
+    owner_record = await UserService.get_user(lot.owner_telegram_id)
 
-        else:
-            await bot.send_message(chat_id=owner_telegram_id,
-                                   text=_('Ваш лот <b>{desc}...</b> завершився без ставок.',
-                                          locale=owner.language).format(
-                                       desc=lot.description[:25]),
+    if lot.bidder_telegram_id:
+        bidder = await UserService.get_user(lot.bidder_telegram_id)
+        winner_tg = await bot.get_chat(lot.bidder_telegram_id)
 
-                                   reply_markup=main_kb)
-            await delete_record_by_id(job_id, database.models.lot.Lot)
+        await bot.send_message(
+            chat_id=lot.bidder_telegram_id,
+            text=_(
+                '🏆 Вітаємо, {username}! Ви виграли аукціон "<b>{desc}</b>" 🎉\n'
+                'Фінальна ставка: <b>{price} {currency}</b>.\n'
+                'Зв’яжіться з власником, щоб завершити угоду: <a href="https://t.me/{owner_username}">@{owner_username}</a>.\n\n'
+                '✅ <b>Рекомендовані способи безпечної угоди:</b>\n'
+                '— Особиста зустріч і передача товару на місці\n'
+                '— Відправка через пошту з накладеним платежем\n'
+                '— Використання перевіреного посередника\n\n'
+                '⚠️ <b>Увага:</b> Уникайте передоплат, якщо не впевнені у надійності продавця.',
+                locale=bidder.language
+            ).format(
+                username=winner_tg.first_name,
+                desc=lot.description[:25],
+                price=lot.last_bid,
+                currency=lot.currency,
+                owner_username=owner_tg_chat.username
+            )  # TODO: Додати кнопку для скарги на власника лота.
+        )
 
-        """close auction"""
-        try:
-            await bot.delete_message(chat_id=lot.group_fk, message_id=msg_id)
-        except Exception as er:
-            print(er)
+        await bot.send_message(
+            lot.owner_telegram_id,
+            text=_(
+                '🏆 Ваш лот "<b>{desc}</b>" успішно продано! 🎊\n'
+                'Переможець: <a href="https://t.me/{winner_username}">@{winner_username}</a>\n'
+                'Фінальна сума: <b>{price} {currency}</b>.\n'
+                'Зв’яжіться з переможцем, щоб обговорити деталі.\n\n'
+                '✅ <b>Рекомендовані способи безпечної угоди:</b>\n'
+                '— Особиста зустріч\n'
+                '— Поштове відправлення з накладеним платежем\n'
+                '— Використання перевіреного посередника\n\n',
+                locale=owner_record.language
+            ).format(
+                desc=(lot.description[:25] + '...') if len(lot.description) > 25 else lot.description,
+                winner_username=winner_tg.username,
+                price=lot.last_bid,
+                currency=lot.currency
+            )
+        )
     else:
-        scheduler.remove_job(f'lot_{job_id}')
+        await bot.send_message(
+            chat_id=lot.owner_telegram_id,
+            text=_(
+                '😞 На жаль, ваш лот "<b>{desc}</b>" завершився без ставок.\n'
+                'Початкова ціна була: <b>{price} {currency}</b>.\n'
+                'Ви можете спробувати виставити його знову.',
+                locale=owner_record.language
+            ).format(
+                desc=lot.description[:25],
+                price=lot.start_price,
+                currency=lot.currency
+            ),
+            reply_markup=main_kb
+        )
+
+    try:
+        await delete_record_by_id(job_id, database.models.lot.Lot)
+        await bot.delete_message(chat_id=lot.group_id, message_id=lot.message_id)
+    except Exception as error:
+        logging.error(error)
 
 
-async def adv_ending(job_id):
-    adv = await AdvertisementService.get_adv(job_id)
+async def adv_ending(job_id: int, *args, **kwargs) -> None:
+    """Handles the expiration of an advertisement."""
     scheduler.remove_job(f'adv_{job_id}')
-    if adv:
-        owner_telegram_id = adv.owner_telegram_id
-        owner = await UserService.get_user(owner_telegram_id)
-        await delete_record_by_id(job_id, database.models.advertisement.Advertisement)
-        await bot.send_message(chat_id=owner_telegram_id,
-                               text=_('⚠️ У вашого оголошення <b>{desc}...</b> завершився термін і його було видалено.',
-                                      locale=owner.language).format(
-                                   desc=adv.description[:25]),
 
-                               reply_markup=main_kb)
-        try:
-            await bot.delete_message(chat_id=adv.group_fk, message_id=adv.message_id)
-        except Exception as er:
-            print(er)
-    else:
-        scheduler.remove_job(f'adv_{job_id}')
+    if not (adv := await AdvertisementService.get_adv(job_id)):
+        return
+
+    owner = await UserService.get_user(adv.owner_telegram_id)
+    await bot.send_message(
+        chat_id=adv.owner_telegram_id,
+        text=_(
+            '📢 Ваше оголошення "<b>{desc}</b>" було активним 7 днів і зараз завершилося.\n\n'
+            'Можливо, варто опублікувати його знову або спробувати іншу групу? 😉',
+            locale=owner.language
+        ).format(
+            desc=adv.description[:25]
+        ),
+        reply_markup=main_kb
+    )
+
+    try:
+        await delete_record_by_id(job_id, database.models.advertisement.Advertisement)
+        await bot.delete_message(chat_id=adv.group_id, message_id=adv.message_id)
+    except Exception as error:
+        logging.error(error)
+
 
 
 async def create_price_step_kb(price_steps, new_lot_id, currency):
