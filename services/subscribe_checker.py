@@ -126,7 +126,7 @@ async def main():
                 error_count = 0
         except Exception as e:
             if error_count == 10:
-                await bot.send_message(DEV_ID, "Проблема з підключенням до бази даних!")
+                await bot.send_message(DEV_ID, f"Проблема з підключенням до бази даних: {e}")
             logging.exception(f"Error during processing: {e}")
             logging.info(f"Retrying in {retry_delay} seconds...")
             await asyncio.sleep(retry_delay)
