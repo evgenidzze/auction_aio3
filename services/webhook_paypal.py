@@ -4,7 +4,7 @@ import aiohttp
 from aiohttp import BasicAuth
 from fastapi import FastAPI, Request
 
-from database.db_manage import update_user_sql
+from database.services.user_service import UserService
 from keyboards.admin_kb import admin_menu_kb
 from utils.config import PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET
 from utils.create_bot import bot
@@ -22,7 +22,7 @@ async def paypal_webhook(request: Request):
         merchant_id = resource.get("merchant_id")
         email = resource.get("email")
         user_id = await get_tracking_id_paypal(resource)
-        await update_user_sql(telegram_id=user_id, merchant_id=merchant_id)
+        await UserService.update_user_sql(telegram_id=user_id, merchant_id=merchant_id)
         try:
             await bot.send_message(chat_id=user_id, text="Вітаю ваш PayPal під'єднано до партнерської програми бота!", reply_markup=admin_menu_kb.as_markup())
         except Exception as err:

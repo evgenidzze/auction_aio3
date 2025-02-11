@@ -18,6 +18,7 @@ from database.services.base import delete_record_by_id
 from database.services.group_channel_service import GroupChannelService
 from database.services.group_subscription_plan_service import GroupSubscriptionPlanService
 from database.services.lot_service import LotService
+from database.services.user_group_service import UserGroupService
 from database.services.user_service import UserService
 from utils.create_bot import bot, scheduler, job_stores
 from keyboards.client_kb import decline_lot_btn, accept_lot_btn, back_to_main_btn, main_kb
@@ -156,7 +157,6 @@ async def adv_ending(job_id: int, *args, **kwargs) -> None:
         await bot.delete_message(chat_id=adv.group_id, message_id=adv.message_id)
     except Exception as error:
         logging.error(error)
-
 
 
 async def create_price_step_kb(price_steps, new_lot_id, currency):
@@ -551,3 +551,36 @@ async def check_group_subscriptions_db_and_paypal(group_id, chat_subscription):
                                                                  f'{sub_type}_token')
                 sub_dates[sub_type] = 'не активовано'
     return sub_dates, tokens
+
+
+async def add_user_group_handler(user_id, group_id):
+    if group_id:
+        group = await GroupChannelService.get_group_record(group_id)
+        await UserGroupService.create_user_group(user_id, group_id)
+        await bot.send_message(chat_id=user_id, text=_(
+            "✅ Вітаю, група <a href='{chat_link}'><b>{group_name}</b></a> тепер є у списку ваших груп для публікації.",
+        ).format(
+            chat_link=group.chat_link,
+            group_name=group.chat_name), disable_web_page_preview=True)
+
+
+async def deeplink_handler(main_menu, message, command, state, kwargs):
+    """
+    Обробляє deeplink при переході з групи в бота.
+    Якщо повертає True - значить перериває start().
+    Повертає False - пропонує обрати мову.
+    """
+    if command.args:
+        user = await UserService.get_user(message.from_user.id)
+        user_group = await UserGroupService.get_user_groups(message.from_user.id)
+        if not user:
+            await state.update_data(group_id=command.args)
+            return False
+        elif not user_group:
+            await state.update_data(group_id=command.args)
+            await main_menu(message, state, **kwargs)
+            return True
+        else:
+            await main_menu(message, state, **kwargs)
+            return True
+    return False
