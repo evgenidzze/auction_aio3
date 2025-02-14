@@ -1,3 +1,5 @@
+import logging
+
 from sqlalchemy import select, update
 from sqlalchemy.orm import selectinload
 from sqlalchemy.dialects.mysql import insert
@@ -89,5 +91,5 @@ class GroupSubscriptionPlanService:
                 await session.commit()
             except Exception as e:
                 await session.rollback()
-                print(f"Error updating subscription of chat {chat_id}: {e}")
+                logging.info(f"Error updating subscription of chat {chat_id}: {e}")
                 raise e

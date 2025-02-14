@@ -29,7 +29,7 @@ from utils.create_bot import scheduler, _, i18n, bot, job_stores
 import keyboards.client_kb as client_kb
 from utils.paypal import get_order_status, create_order
 
-from handlers.middleware import require_username, UserNotBlockedFilter, add_to_group_user
+from handlers.middleware import require_username, UserNotBlockedFilter, create_user_group
 from utils.utils import IsPrivateChatFilter, create_user_lots_kb, IsMessageType, generate_chats_kb, \
     gather_media_from_messages, is_media_count_allowed, send_post_fsm, send_post, adv_sub_time_remain, \
     user_have_approved_adv_token, send_advert, new_bid_caption, lot_ending, adv_ending, repost_adv, payment_kb, \
@@ -87,6 +87,7 @@ class FSMClient(StatesGroup):
 @message(CommandStart(deep_link=True), IsPrivateChatFilter())
 async def start(message: types.Message, state: FSMContext, command: CommandObject, **kwargs):
     """/start"""
+    await state.clear()
     for job in scheduler.get_jobs():
         logging.info(f'{job.id}-{job}-{job.kwargs}')
     interrupt_start = await deeplink_handler(main_menu, message, command, state, kwargs)
@@ -112,18 +113,19 @@ async def main_menu(call, state: FSMContext, **kwargs):
     await state.clear()
     clean_text = "Вітаю, <b>{first_name}!</b><a href='https://telegra.ph/file/3f6168cc5f94f115331ac.png'>⠀</a>\n"
     text = _(clean_text).format(first_name=call.from_user.username)
-
-    if isinstance(call, types.CallbackQuery):
-        if call.data in ('en', 'uk'):
-            await UserService.insert_or_update_user(telegram_id=call.from_user.id, language=call.data)
-            text = _(clean_text, locale=call.data).format(first_name=call.from_user.username)
-            i18n.current_locale = call.data
-        await call.message.edit_text(text=text,
-                                     reply_markup=client_kb.main_kb)
+    geo = getattr(call, 'data', None)
+    if geo in ('en', 'uk'):
+        await UserService.insert_or_update_user(telegram_id=call.from_user.id, language=call.data)
+        text = _(clean_text, locale=call.data).format(first_name=call.from_user.username)
+        i18n.current_locale = call.data
+    if group_id:
+        await add_user_group_handler(call.from_user.id, group_id)
+        await bot.send_message(chat_id=call.from_user.id, text=text, reply_markup=client_kb.main_kb)
+        return
+    if isinstance(call, types.Message):
+        await bot.send_message(chat_id=call.from_user.id, text=text, reply_markup=client_kb.main_kb)
     else:
-        await call.answer(text=text, reply_markup=client_kb.main_kb)
-    await add_user_group_handler(call.from_user.id, group_id)
-    await state.clear()
+        await call.message.edit_text(text=text, reply_markup=client_kb.main_kb)
 
 
 @callback_query(F.data == 'auction')
@@ -154,7 +156,7 @@ async def other_channels_groups(call: types.CallbackQuery, **kwargs):
         inline_keyboard=[[InlineKeyboardButton(text=chat.chat_name, url=chat.chat_link)] for chat in
                          other_chats])
     kb.inline_keyboard.extend([[client_kb.back_group_channels_btn]])
-    await call.message.edit_text(text=_('Список каналів у яких працює бот:'),
+    await call.message.edit_text(text=_('Список груп у яких працює бот:'),
                                  reply_markup=kb)
 
 
@@ -167,7 +169,7 @@ async def my_channels_groups(call: types.CallbackQuery, state: FSMContext, **kwa
                          chat in
                          my_chats])
     kb.inline_keyboard.extend([[client_kb.back_group_channels_btn]])
-    await call.message.edit_text(text=_('Список каналів у яких працює бот:'),
+    await call.message.edit_text(text=_('Список груп у яких працює бот:'),
                                  reply_markup=kb)
 
 
@@ -175,6 +177,8 @@ async def my_channels_groups(call: types.CallbackQuery, state: FSMContext, **kwa
 async def my_group_settings(call: types.CallbackQuery, state: FSMContext):
     await state.set_state(None)
     await state.update_data(my_group=call.data)
+    group = await GroupChannelService.get_group_record(call.data)
+
     await call.message.edit_text(text='Показати інфу про групу (статуси, підписки і т д)',
                                  reply_markup=client_kb.client_group_kb.as_markup())
 
@@ -205,8 +209,8 @@ async def lot_group(call: types.CallbackQuery, state: FSMContext, **kwargs):
 @callback_query(FSMClient.lot_group_id)
 async def ask_city(call: types.CallbackQuery, state: FSMContext, **kwargs):
     await state.update_data(lot_group_id=call.data)
-    user = await UserService.get_user(call.from_user.id)
-    if user.is_blocked:
+    user_group = await UserGroupService.get_user_group(call.from_user.id, call.data)
+    if user_group.is_blocked:
         await bot.send_message(chat_id=call.from_user.id, text=_('Вас було заблоковано за порушення правил.'))
         return
     await state.set_state(FSMClient.city)
@@ -357,31 +361,32 @@ async def my_ads(call: types.CallbackQuery, state: FSMContext, **kwargs):
 @callback_query(F.data == 'create_ad')
 @require_username
 async def group_for_adv(call: types.CallbackQuery, state: FSMContext, **kwargs):
-    await call.message.edit_text(text=_('Перевірка підписки...'))
-    is_subscribed = await adv_sub_time_remain(call.from_user.id)
-    redis_obj = job_stores.get('default')
-    result = redis_obj.redis.get('payment')
-    if is_subscribed or (result and result.decode('utf-8') != 'on'):
-        chats = await GroupChannelService.get_all_groups()
-        kb = await generate_chats_kb(chats)
-        kb.inline_keyboard.extend([[client_kb.back_to_ad_menu_btn]])
-        await state.set_state(FSMClient.adv_group_id)
-        await call.message.edit_text(text='Оберіть групу в якій хочете виставити оголошення:', reply_markup=kb)
-    elif await user_have_approved_adv_token(call.from_user.id):
-        await UserService.update_user_sql(call.from_user.id, advert_subscribe_time=604800 + time.time())
-    else:
-        await call.message.edit_text(text=_('ℹ️ Щоб виставити оголошення, потрібно оформити підписку.'),
-                                     reply_markup=client_kb.subscribe_adv_kb)
-        await state.set_state(FSMClient.adv_sub_seconds)
+    chats = await GroupChannelService.get_all_groups()
+    kb = await generate_chats_kb(chats)
+    kb.inline_keyboard.extend([[client_kb.back_to_ad_menu_btn]])
+    await state.set_state(FSMClient.adv_group_id)
+    await call.message.edit_text(text='Оберіть групу в якій хочете виставити оголошення:', reply_markup=kb)
 
 
-# @callback_query(F.data == 'create_ad')
 @callback_query(FSMClient.adv_group_id)
 async def ask_description_ad(call: types.CallbackQuery, state: FSMContext, **kwargs):
     await state.update_data(adv_group_id=call.data)
-    await call.message.edit_text(text=_('📝 Напишіть опис для оголошення:'),
-                                 reply_markup=client_kb.reset_to_ad_menu_kb)
-    await state.set_state(FSMClient.description_ad)
+    await call.message.edit_text(text=_('Перевірка підписки...'))
+    is_subscribed = await adv_sub_time_remain(call.from_user.id, call.data)
+    if is_subscribed:
+        chats = await GroupChannelService.get_all_groups()
+        kb = await generate_chats_kb(chats)
+        kb.inline_keyboard.extend([[client_kb.back_to_ad_menu_btn]])
+        await call.message.edit_text(text=_('📝 Напишіть опис для оголошення:'),
+                                     reply_markup=client_kb.reset_to_ad_menu_kb)
+        await state.set_state(FSMClient.description_ad)
+    elif await user_have_approved_adv_token(call.from_user.id, group_id=call.data):
+        await UserGroupService.update_user_group(call.from_user.id, group_id=call.data,
+                                                 advert_subscribe_time=604800 + time.time())
+    else:
+        await call.message.edit_text(text=_('ℹ️ Щоб виставитиte оголошення, потрібно оформити підписку.'),
+                                     reply_markup=client_kb.subscribe_adv_kb)
+        await state.set_state(FSMClient.adv_sub_seconds)
 
 
 @message(FSMClient.description_ad, IsMessageType(message_type=[ContentType.TEXT]))
@@ -461,7 +466,7 @@ async def adv_publish(message, state, **kwargs):
 
 @callback_query(UserNotBlockedFilter(), F.data.startswith('bid'))
 @require_username
-@add_to_group_user
+@create_user_group
 async def make_bid(message: types.CallbackQuery, **kwargs):
     bid_data = message.data.split('_')
     lot_id = bid_data[2]
@@ -497,19 +502,17 @@ async def make_bid(message: types.CallbackQuery, **kwargs):
             await bot.edit_message_caption(chat_id=group_id, message_id=lot_post.message_id, caption=caption,
                                            reply_markup=lot_post.reply_markup)
             await bot.send_message(chat_id=owner_id,
-                                   text=_(
-                                       "💸 Нова ставка на ваш лот!\n\n<a href='{lot_post}'><b>👉 Перейти до лоту.</b></a>").format(
-                                       lot_post=lot_post.get_url()),
-
-                                   reply_markup=client_kb.main_kb)
+                                   text=_("💸 Нова ставка на ваш лот!\n\n"
+                                          "<a href='{lot_post}'><b>👉 Перейти до лоту.</b></a>").format(
+                                       lot_post=lot_post.get_url()), reply_markup=client_kb.main_kb)
             if last_bidder_id:
                 await bot.send_message(chat_id=last_bidder_id,
                                        text=_(
                                            "👋 Вашу ставку на лот <a href='{lot_post}'><b>{lot_name}</b></a> перебили.\n\n"
                                            "<a href='{lot_post}'><b>👉 Перейти до лоту.</b></a>").format(
-                                           lot_post=lot_post.get_url(), lot_name=lot.description),
-                                       reply_markup=client_kb.main_kb,
-                                       )
+                                           lot_post=lot_post.get_url(),
+                                           lot_name=lot.description),
+                                       reply_markup=client_kb.main_kb)
             await message.answer(text=_('✅ Ставку прийнято!'))
         else:
             await message.answer(text=_('Лот ще не опубліковано.'))
@@ -959,33 +962,37 @@ async def new_sniper_time(call: types.CallbackQuery, state: FSMContext, **kwargs
 
 @callback_query(FSMClient.adv_sub_seconds)
 async def create_adv_sub(call: types.CallbackQuery, state: FSMContext, **kwargs):
-    user = await UserService.get_user(call.from_user.id)
-    if user.user_adv_token:
-        status = await get_order_status(user.user_adv_token)
+    data = await state.get_data()
+    adv_group_id = data.get('adv_group_id')
+    user_group = await UserGroupService.get_user_group(call.from_user.id, adv_group_id)
+    if user_group.user_adv_token:
+        status = await get_order_status(user_group.user_adv_token)
         if status in ('CREATED', 'APPROVED'):
-            token = user.user_adv_token
+            token = user_group.user_adv_token
         else:
             token = await create_order(usd=1)
-            await UserService.update_user_sql(call.from_user.id, user_adv_token=token)
+            await UserGroupService.update_user_group(call.from_user.id, group_id=adv_group_id, user_adv_token=token)
     else:
         token = await create_order(usd=1)
-        await UserService.update_user_sql(call.from_user.id, user_adv_token=token)
+        await UserGroupService.update_user_group(call.from_user.id, group_id=adv_group_id, user_adv_token=token)
 
-    kb = await payment_kb(token, activate_btn_text=_('Оплатити 15$'), callback_data=f'update_{token}')
+    kb = await payment_kb(token, activate_btn_text=_('Оплатити 15$'), callback_data=f'update:{token}:{adv_group_id}')
     await call.message.edit_text(text=_('💲 Вартість підписки 15$ на 30 днів.\n\n'
                                         'Оплатіть підписку натиснувши на кнопку нижче 👇'), reply_markup=kb)
 
 
 @callback_query(F.data.startswith('update_'))
 async def update_adv_payment_status(call: types.CallbackQuery, state: FSMContext, **kwargs):
-    token = call.data.split('_')[1]
+    token = call.data.split(':')[1]
+    group_id = call.data.split(':')[2]
     payment = await payment_completed(token)
     if payment:
-        await UserService.update_user_sql(call.from_user.id, advert_subscribe_time=604800 + time.time())
+        await UserGroupService.update_user_group(call.from_user.id, group_id=group_id,
+                                                 advert_subscribe_time=604800 + time.time())
         await call.message.edit_text(text=_('✅ Вітаю! Підписку на виставлення оголошень успішно оформлено на 30 днів.'),
                                      reply_markup=client_kb.main_kb)
     else:
-        kb = await payment_kb(token, activate_btn_text=_('Оплатити 15$'), callback_data=f'update_{token}')
+        kb = await payment_kb(token, activate_btn_text=_('Оплатити 15$'), callback_data=f'update:{token}:{group_id}')
         try:
             await call.message.edit_text(text=_('⚠️ Оплату не зафіксовано'), reply_markup=kb)
         except:

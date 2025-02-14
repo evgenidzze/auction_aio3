@@ -33,6 +33,3 @@ storage = RedisStorageDisp(redis=redis)
 
 bot = Bot(BOT_TOKEN, default=DefaultBotProperties(parse_mode='html'))
 dp = Dispatcher(storage=storage)
-
-for job in scheduler.get_jobs():
-    print(f"Job ID: {job.id}, Next Run Time: {job.next_run_time}")

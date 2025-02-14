@@ -1,3 +1,4 @@
+import logging
 from typing import List
 
 from sqlalchemy import select, update, delete
@@ -51,5 +52,24 @@ class UserGroupService:
     async def delete_record(user_id, group_id):
         async with async_session() as session:
             stmt = delete(UserGroup).where(UserGroup.user_id == user_id, UserGroup.group_id == group_id)
+            await session.execute(stmt)
+            await session.commit()
+
+    @staticmethod
+    async def get_user_group(user_id, group_id):
+        async with async_session() as session:
+            stmt = select(UserGroup).where(UserGroup.user_id == user_id, UserGroup.group_id == group_id)
+            res = await session.execute(stmt)
+            user_group = res.scalars().first()
+            if user_group:
+                return user_group
+            else:
+                logging.info(f"UserGroup with user_id {user_group} and group_id {group_id} doesn't exist")
+                return None
+
+    @staticmethod
+    async def update_user_group(user_id, group_id, **kwargs):
+        async with async_session() as session:
+            stmt = update(UserGroup).where(UserGroup.user_id == user_id, UserGroup.group_id == group_id).values(kwargs)
             await session.execute(stmt)
             await session.commit()

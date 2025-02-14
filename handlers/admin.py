@@ -12,12 +12,12 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from database.services.group_channel_service import GroupChannelService
 from database.services.group_subscription_plan_service import GroupSubscriptionPlanService
-from database.services.user_service import UserService
+from database.services.user_group_service import UserGroupService
 from utils.create_bot import job_stores, bot, _
 
-from keyboards.admin_kb import reject_to_admin_btn, back_to_admin_btn, \
+from keyboards.admin_kb import back_to_admin_btn, \
     unblock_user_btn, block_user_btn, back_my_channels_groups, \
-    activate_ad_auction_kb, admin_menu_kb, add_group_kb
+    activate_ad_auction_kb, admin_menu_kb, add_group_kb, back_to_admin_kb
 from keyboards.client_kb import main_kb
 from utils.paypal import create_partner_referral_url_and_token, user_is_merchant_api
 from utils.utils import payment_completed, \
@@ -34,6 +34,7 @@ callback_query = router.callback_query
 
 
 class FSMAdmin(StatesGroup):
+    restrict_user_group_id = State()
     monetize_chat = State()
     group_id = State()
     user_id = State()
@@ -49,28 +50,46 @@ async def admin(message: types.Message, state):
             await message.message.edit_text(text='Меню адміністратора', reply_markup=admin_menu_kb.as_markup())
 
 
-async def deny_user_access(call: types.CallbackQuery, state: FSMContext):
+async def restrict_user_group(call: types.CallbackQuery, state: FSMContext):
+    owner_groups = await GroupChannelService.get_owner_groups(call.from_user.id)
+    if owner_groups:
+        await state.set_state(FSMAdmin.restrict_user_group_id)
+        kb = await generate_chats_kb(owner_groups)
+        kb.inline_keyboard.extend([[back_to_admin_btn]])
+        await call.message.edit_text(text=_('👋🏻 Вітаю!\n'
+                                            'Оберіть групу у якій бажаєте змінити права учасника:'),
+                                     reply_markup=kb)
+    else:
+        kb = InlineKeyboardMarkup(inline_keyboard=[[add_group_kb], [back_to_admin_btn]])
+        await call.message.edit_text(text=_('Немає підключених власних груп, бажаєте підключити?'), reply_markup=kb)
+
+
+async def choose_restrict_user(call: types.CallbackQuery, state: FSMContext):
+    await state.update_data(restrict_user_group_id=call.data)
     await state.set_state(FSMAdmin.user_id)
     await call.message.edit_text(text='👋🏻 Вітаю!\n'
-                                      'Перешліть повідомлення або <b>id</b> користувача для надання або скасування прав:',
-                                 reply_markup=InlineKeyboardMarkup(inline_keyboard=[[reject_to_admin_btn]]))
+                                      'Перешліть повідомлення користувача для надання або скасування прав:',
+                                 reply_markup=back_to_admin_kb)
 
 
+@message(FSMAdmin.user_id)
 async def user_access(message: types.Message, state: FSMContext):
+    fsm_data = await state.get_data()
+    restrict_user_group_id = fsm_data.get('restrict_user_group_id')
     if isinstance(message, types.Message):
-        if message.forward_from:
-            user_id = message.forward_from.id
+        if not message.forward_from:
+            await message.answer(text=_('❌ Перешліть повідомлення користувача:'), reply_markup=back_to_admin_kb)
+            return
         else:
-            user_id = message.text
-        await state.update_data(black_user_id=user_id)
+            user_id = message.forward_from.id
+            await state.update_data(black_user_id=user_id)
     else:
-        fsm_data = await state.get_data()
         user_id = fsm_data.get('black_user_id')
-    user = await UserService.get_user(user_id)
+    user_group = await UserGroupService.get_user_group(user_id, restrict_user_group_id)
 
-    if user:
+    if user_group:
         kb = InlineKeyboardMarkup(inline_keyboard=[])
-        if user.is_blocked:
+        if user_group.is_blocked:
             unblock_user_btn.callback_data = unblock_user_btn.callback_data.format(user_id=user_id)
             kb.inline_keyboard.extend([[unblock_user_btn]])
             text = '🚫 Користувач заблокований.'
@@ -85,15 +104,15 @@ async def user_access(message: types.Message, state: FSMContext):
             await message.message.edit_text(text=text, reply_markup=kb)
     else:
         await message.answer(text='❌ Користувача з таким id не існує.\n'
-                                  'Спробуйте ще раз:')
+                                  'Спробуйте ще раз:', reply_markup=back_to_admin_kb)
 
 
 async def change_user_access(call: types.CallbackQuery, state: FSMContext):
     user_id, action = call.data.split('_')[1:3]
     if action == 'block':
-        await UserService.update_user_sql(user_id, is_blocked=1)
+        await UserGroupService.update_user_sql(user_id, is_blocked=1)
     else:
-        await UserService.update_user_sql(user_id, is_blocked=0)
+        await UserGroupService.update_user_sql(user_id, is_blocked=0)
     await user_access(call, state)
     return
 
@@ -139,7 +158,7 @@ async def add_group(call: types.CallbackQuery):
 
 async def my_channels_groups(call: types.CallbackQuery, state: FSMContext):
     """Після натискання на кнопку Мої групи/канали"""
-    user_chats = await GroupChannelService.get_group_by_owner_telegram_id(call.from_user.id)
+    user_chats = await GroupChannelService.get_owner_groups(call.from_user.id)
     kb = await generate_chats_kb(user_chats)
     kb.inline_keyboard.extend([[add_group_kb], [back_to_admin_btn]])
     await state.set_state(FSMAdmin.group_id)
@@ -215,7 +234,7 @@ async def my_chat_member_handler(my_chat_member: types.ChatMemberUpdated):
         ).format(title=chat_title),
         ChatMemberStatus.MEMBER: _(
             "{title} успішно підключено!"
-            #"Для того, щоб бот функціонував у групі {title}, потрібно надати йому права адміністратора."
+            # "Для того, щоб бот функціонував у групі {title}, потрібно надати йому права адміністратора."
         ).format(title=chat_title),
         ChatMemberStatus.RESTRICTED: _(
             "Бот не може функціонувати у групі {title}, оскільки він заблокований."
@@ -358,13 +377,19 @@ async def monetization(call: types.CallbackQuery, state: FSMContext):
     await call.message.edit_text(text=_('Перевірка партнера...'))
     is_partner = await user_is_merchant_api(call.from_user.id)
     if is_partner:
-        user_chats = await GroupChannelService.get_group_by_owner_telegram_id(call.from_user.id)
-        kb = await generate_chats_kb(user_chats)
-        kb.inline_keyboard.extend([[back_to_admin_btn]])
-        await call.message.edit_text(text=_('Вітаю, ви партнер!\n'
-                                            '💰 Оберіть групу, у якій бажаєте налаштувати монетизацію'),
-                                     reply_markup=kb)
-        await state.set_state(FSMAdmin.monetize_chat)
+        user_chats = await GroupChannelService.get_owner_groups(call.from_user.id)
+        if not user_chats:
+            kb = InlineKeyboardMarkup(inline_keyboard=[[add_group_kb], [back_to_admin_btn]])
+            await call.message.edit_text(text=_('🤝 Вітаю, ви партнер!\n'
+                                                'Але у вас немає підключених власних груп, бажаєте підключити?'),
+                                         reply_markup=kb)
+        else:
+            kb = await generate_chats_kb(user_chats)
+            kb.inline_keyboard.extend([[back_to_admin_btn]])
+            await call.message.edit_text(text=_('🤝 Вітаю, ви партнер!\n'
+                                                '💰 Оберіть групу, у якій бажаєте налаштувати монетизацію'),
+                                         reply_markup=kb)
+            await state.set_state(FSMAdmin.monetize_chat)
     else:
         referral_data = await create_partner_referral_url_and_token(call.from_user.id)
         reg_url = referral_data.get('url')
@@ -385,7 +410,7 @@ def register_admin_handlers(r: Router):
     r.callback_query.register(admin, F.data == 'admin')  # Меню адміністратора
     r.callback_query.register(change_user_access, F.data.startswith('access'))  # Блокування/Розблокування користувача
     r.callback_query.register(my_channels_groups, F.data == 'my_admin_channels_groups')  # Пункт меню "Мої групи/канали"
-    r.callback_query.register(deny_user_access, F.data == 'deny_user_access')  # Чорний список
+    r.callback_query.register(restrict_user_group, F.data == 'deny_user_access')  # Чорний список
     r.callback_query.register(payment_tumbler, F.data.endswith('_payment'))  # Вимкнути/Увімкнути оплату
     r.callback_query.register(SubscriptionGroupHandler().listening,
                               F.data.startswith("subscription_group"))  # Підписка на групу
@@ -394,8 +419,8 @@ def register_admin_handlers(r: Router):
     r.callback_query.register(user_chat_menu, FSMAdmin.group_id)
     r.callback_query.register(group_id_settings, FSMAdmin.monetize_chat)
     r.callback_query.register(update_bot_subscription_status, F.data.endswith('sub_update'))
-    r.message.register(user_access, FSMAdmin.user_id)
     r.callback_query.register(paid_chat_function, F.data.startswith('paid:'))
+    r.callback_query.register(choose_restrict_user, FSMAdmin.restrict_user_group_id)
 
 
 register_admin_handlers(router)  # TODO: Замість цього навішати декораторів на функції

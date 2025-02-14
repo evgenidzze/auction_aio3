@@ -48,7 +48,7 @@ class GroupChannelService:
             return chats
 
     @staticmethod
-    async def get_group_by_owner_telegram_id(user_id) -> List[ChannelGroup]:
+    async def get_owner_groups(user_id) -> List[ChannelGroup]:
         """
         Отримує всі чати, пов'язані з вказаним власником.
 

@@ -37,12 +37,10 @@ class UserNotBlockedFilter(BaseFilter):
             return False
 
 
-def add_to_group_user(func):
+def create_user_group(func):
     @wraps(func)
     async def wrapper(callback: CallbackQuery, *args, **kwargs):
-        await UserGroupService.create_user_group(user_id=callback.from_user.id,
-                                                 group_id=callback.message.chat.id)
-
+        await UserGroupService.create_user_group(user_id=callback.from_user.id, group_id=callback.message.chat.id)
         return await func(callback, *args, **kwargs)
 
     return wrapper

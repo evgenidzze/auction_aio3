@@ -24,7 +24,7 @@ async def paypal_webhook(request: Request):
         user_id = await get_tracking_id_paypal(resource)
         await UserService.update_user_sql(telegram_id=user_id, merchant_id=merchant_id)
         try:
-            await bot.send_message(chat_id=user_id, text="Вітаю ваш PayPal під'єднано до партнерської програми бота!", reply_markup=admin_menu_kb.as_markup())
+            await bot.send_message(chat_id=user_id, text="🤝 Вітаю ваш PayPal під'єднано до партнерської програми бота!", reply_markup=admin_menu_kb.as_markup())
         except Exception as err:
             logging.info(err)
         return {"status": "processed"}

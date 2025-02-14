@@ -379,20 +379,19 @@ async def gather_media_from_messages(messages: List[types.Message], state) -> Tu
     return videos_id, photos_id
 
 
-async def adv_sub_time_remain(user_id):
-    user = await UserService.get_user(user_id)
-    adv_sub_time: int = user.advert_subscribe_time
+async def adv_sub_time_remain(user_id, group_id):
+    user_group = await UserGroupService.get_user_group(user_id, group_id)
+    adv_sub_time: int = user_group.advert_subscribe_time
     time_remain = adv_sub_time - time.time()
-    print(time_remain)
     if time_remain > 0:
         return True
     else:
         return False
 
 
-async def user_have_approved_adv_token(user_id) -> bool:
-    user = await UserService.get_user(user_id)
-    token = user.user_adv_token
+async def user_have_approved_adv_token(user_id, group_id) -> bool:
+    user_group = await UserGroupService.get_user_group(user_id, group_id)
+    token = user_group.user_adv_token
     if token:
         return await payment_completed(token)
     else:
@@ -554,14 +553,13 @@ async def check_group_subscriptions_db_and_paypal(group_id, chat_subscription):
 
 
 async def add_user_group_handler(user_id, group_id):
-    if group_id:
-        group = await GroupChannelService.get_group_record(group_id)
-        await UserGroupService.create_user_group(user_id, group_id)
-        await bot.send_message(chat_id=user_id, text=_(
-            "✅ Вітаю, група <a href='{chat_link}'><b>{group_name}</b></a> тепер є у списку ваших груп для публікації.",
-        ).format(
-            chat_link=group.chat_link,
-            group_name=group.chat_name), disable_web_page_preview=True)
+    group = await GroupChannelService.get_group_record(group_id)
+    await UserGroupService.create_user_group(user_id, group_id)
+    await bot.send_message(chat_id=user_id, text=_(
+        "✅ Вітаю, група <a href='{chat_link}'><b>{group_name}</b></a> тепер є у списку ваших груп для публікації.",
+    ).format(
+        chat_link=group.chat_link,
+        group_name=group.chat_name), disable_web_page_preview=True)
 
 
 async def deeplink_handler(main_menu, message, command, state, kwargs):

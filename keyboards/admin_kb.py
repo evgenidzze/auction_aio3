@@ -16,7 +16,6 @@ def create_subscription_group_buttons_kb(chat_id, is_trial=False):
     ])
 
 
-reject_to_admin_btn = InlineKeyboardButton(text='❌Відміна', callback_data='admin')
 back_to_admin_btn = InlineKeyboardButton(text='« Назад', callback_data='admin')
 back_to_group_manage_btn = InlineKeyboardButton(text="« Назад", callback_data="group_manage")
 unblock_user_btn = InlineKeyboardButton(text='🔑 Розблокувати', callback_data='access_{user_id}_unblock')
@@ -35,6 +34,7 @@ back_to_monetization = InlineKeyboardButton(text='« Назад', callback_data=
 my_channels_groups_btn = InlineKeyboardButton(text='⚙️ Функціонал', callback_data='my_admin_channels_groups')
 
 admin_menu_kb.row(my_channels_groups_btn, add_group_kb).row(monetization, black_list_btn)
+back_to_admin_kb = InlineKeyboardMarkup(inline_keyboard=[[back_to_admin_btn]])
 
 
 async def activate_ad_auction_kb(auction_token, ads_token, group_id, back_btn, free_trial):
@@ -49,7 +49,7 @@ async def activate_ad_auction_kb(auction_token, ads_token, group_id, back_btn, f
             builder.button(text='Активувати оголошення', url=ads_payment_url)
         if free_trial == 0:
             builder.button(text='🔑 Пробний період (14 днів)',
-                              callback_data=f'subscription_group:free_trial:14:{group_id}')
+                           callback_data=f'subscription_group:free_trial:14:{group_id}')
         builder.button(text=_('🔄 Оновити статус'),
                        callback_data=f'{group_id}:{auction_token},{ads_token}:sub_update')
     builder.add(back_btn)

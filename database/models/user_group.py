@@ -17,6 +17,9 @@ class UserGroup(Base):
     user: Mapped["User"] = relationship('User', back_populates='groups')  # Bi-directional relationship
     group: Mapped["ChannelGroup"] = relationship('ChannelGroup',
                                                  back_populates='users')  # Bi-directional relationship
+    is_blocked: Mapped[bool] = mapped_column(nullable=False, default=False)
+    advert_subscribe_time: Mapped[int] = mapped_column(nullable=False, default='0')
+    user_adv_token: Mapped[str] = mapped_column(type_=String(255), nullable=True, unique=True)
 
 
 def __repr__(self):
