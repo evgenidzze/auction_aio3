@@ -1,7 +1,5 @@
 import datetime
 import time
-from typing import Literal
-
 from aiogram import types, Router, F
 from aiogram.enums import ChatMemberStatus, ChatType
 from aiogram.filters import Command
@@ -38,7 +36,7 @@ class FSMAdmin(StatesGroup):
 
 @router.message(Command('admin'))
 @router.callback_query(F.data == 'admin')
-async def admin(message: types.Message, state):
+async def admin(message, state):
     await state.clear()
     if isinstance(message, types.Message):
         if message.chat.type == ChatType.PRIVATE:
@@ -73,7 +71,7 @@ async def choose_restrict_user(call: types.CallbackQuery, state: FSMContext):
 
 
 @router.message(FSMAdmin.user_id)
-async def user_access(message: types.Message, state: FSMContext):
+async def user_access(message, state: FSMContext):
     fsm_data = await state.get_data()
     restrict_user_group_id = fsm_data.get('restrict_user_group_id')
     if isinstance(message, types.Message):
@@ -137,18 +135,15 @@ async def group_id_settings(call: types.CallbackQuery, state: FSMContext, chat_i
     await state.set_state(None)
     if not chat_id:
         chat_id = call.data
-
-    chat = await bot.get_chat(chat_id=chat_id)
     subscription = await GroupSubscriptionPlanService.get_subscription(chat_id)
-    text, kb = await create_monetization_text_and_kb(subscription, chat.title, chat_id)
+    text, kb = await create_monetization_text_and_kb(subscription, chat_id)
     await call.message.edit_text(text=text, reply_markup=kb)
 
 
 @router.callback_query(F.data.startswith('paid:'))
 async def paid_chat_function(call: types.CallbackQuery, state: FSMContext):
     action_to_boolean = {'activate': 1, 'deactivate': 0}
-    func_type: Literal['lot', 'ads']
-    func_type_to_db_column_name = {'lot': 'auction_paid', 'ads': 'ads_paid'}
+    func_type_to_db_column_name = {GroupTypeSubscription.AUCTION: 'auction_paid', GroupTypeSubscription.ADVERTISEMENT: 'ads_paid'}
 
     func_type, action, group_id = call.data.split(':')[1:]
     kwargs = {func_type_to_db_column_name[func_type]: action_to_boolean[action]}
@@ -194,12 +189,12 @@ async def user_chat_menu(call: types.CallbackQuery):
         sub_dates, tokens = await check_group_subscriptions_db_and_paypal(group_id=group_id,
                                                                           chat_subscription=chat_subscription)
         text = (
-            f'Оголошення {sub_dates["ads"]}\n'
-            f'Аукціон {sub_dates["auction"]}'
+            f'Оголошення {sub_dates[GroupTypeSubscription.ADVERTISEMENT]}\n'
+            f'Аукціон {sub_dates[GroupTypeSubscription.AUCTION]}'
         )
         kb = await activate_ad_auction_kb(
-            auction_token=tokens['auction'],
-            ads_token=tokens['ads'],
+            auction_token=tokens[GroupTypeSubscription.AUCTION],
+            ads_token=tokens[GroupTypeSubscription.ADVERTISEMENT],
             back_btn=back_my_channels_groups,
             group_id=group_id,
             free_trial=chat_subscription.free_trial
@@ -209,7 +204,7 @@ async def user_chat_menu(call: types.CallbackQuery):
 
 
 @router.callback_query(F.data.endswith('sub_update'))
-async def update_bot_subscription_status(call, state: FSMContext):
+async def update_bot_subscription_status(call):
     """Після натискання на кнопку Оновити статус"""
     token = call.data.split('_')[-1]
     user_chat_id = call.data.split(':')[0]
@@ -271,8 +266,6 @@ async def my_chat_member_handler(my_chat_member: types.ChatMemberUpdated):
         await user_chat_menu(types.CallbackQuery(id='generated_callback_query', from_user=my_chat_member.from_user,
                                                  chat_instance=str(my_chat_member.chat.id),
                                                  data=f'{my_chat_member.chat.id}', message=check_sub_msg))
-
-
     elif new_status in messages:
         await bot.send_message(chat_id=user_id, text=messages[new_status])
 
