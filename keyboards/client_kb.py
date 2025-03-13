@@ -120,6 +120,7 @@ reset_to_auction_menu_kb = InlineKeyboardMarkup(inline_keyboard=[[reset_to_aucti
 reset_to_ad_menu_btn = InlineKeyboardButton(text='❌ Відміна', callback_data='ad_menu')
 back_to_ad_menu_btn = InlineKeyboardButton(text='« Назад', callback_data='ad_menu')
 reset_to_ad_menu_kb = InlineKeyboardMarkup(inline_keyboard=[[reset_to_ad_menu_btn]])
+back_to_ad_menu_kb = InlineKeyboardMarkup(inline_keyboard=[[back_to_ad_menu_btn]])
 
 my_channels_groups = InlineKeyboardButton(text='Мої групи', callback_data='my_channels_groups')
 other_channels_groups = InlineKeyboardButton(text='Інші групи', callback_data='other_channels_groups')
