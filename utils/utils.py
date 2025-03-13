@@ -2,7 +2,7 @@ import datetime
 import logging
 import time
 from enum import Enum
-from typing import List, Literal, Tuple, Union, TypeAlias
+from typing import List, Literal, Tuple
 from aiogram import types
 from aiogram.enums import ContentType, ChatType
 from aiogram.filters import BaseFilter
@@ -146,7 +146,7 @@ async def lot_ending(job_id: int, *args, **kwargs) -> None:
 
     try:
         await delete_record_by_id(job_id, database.models.lot.Lot)
-        await bot.delete_message(chat_id=lot.group_id, message_id=lot.message_id)
+        await bot.delete_message(chat_id=lot.group.chat_id, message_id=lot.message_id)
     except Exception as error:
         logging.error(error)
 
@@ -173,7 +173,7 @@ async def adv_ending(job_id: int, *args, **kwargs) -> None:
 
     try:
         await delete_record_by_id(job_id, database.models.advertisement.Advertisement)
-        await bot.delete_message(chat_id=adv.group_id, message_id=adv.message_id)
+        await bot.delete_message(chat_id=adv.group.group_id, message_id=adv.message_id)
     except Exception as error:
         logging.error(error)
 
@@ -386,8 +386,8 @@ async def translate_kb(kb: InlineKeyboardMarkup, locale, owner_id, no_spaces=Fal
         return kb
 
 
-async def gather_media_from_messages(messages: List[types.Message], state) -> Tuple[bool, bool] | Tuple[
-    List[str], List[str]]:
+async def gather_media_from_messages(messages: List[types.Message], state) -> (Tuple[bool, bool] |
+                                                                               Tuple[List[str], List[str]]):
     videos_id, photos_id = [], []
     for message in messages:
         if message.content_type == 'photo':
