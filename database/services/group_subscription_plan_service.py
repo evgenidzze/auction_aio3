@@ -66,7 +66,7 @@ class GroupSubscriptionPlanService:
                     auction_paid=False,
                     auction_token=None,
                     ads_sub_time=0,
-                    ads_paid=False,
+                    ads_paid=True,
                     ads_token=None,
                     free_trial=0
                 )

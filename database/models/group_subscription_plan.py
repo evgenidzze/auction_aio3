@@ -1,15 +1,6 @@
 from sqlalchemy import ForeignKey, Boolean, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-
 from database.models.base import Base
-from enum import Enum as PyEnum
-
-
-
-class GroupType(PyEnum):
-    GROUP = 'group'
-    CHANNEL = 'channel'
-    SUPERGROUP = 'SUPERGROUP'
 
 
 class GroupSubscriptionPlan(Base):
@@ -37,7 +28,7 @@ class GroupSubscriptionPlan(Base):
     auction_token: Mapped[str] = mapped_column(type_=String(255), nullable=True, unique=True)
 
     ads_sub_time: Mapped[int] = mapped_column(nullable=False, default=0, server_default="0")
-    ads_paid: Mapped[bool] = mapped_column(type_=Boolean, default=False)
+    ads_paid: Mapped[bool] = mapped_column(type_=Boolean, default=True)
     ads_token: Mapped[str] = mapped_column(type_=String(255), nullable=True, unique=True)
 
     free_trial: Mapped[int] = mapped_column(nullable=False, default=0, server_default="0")
