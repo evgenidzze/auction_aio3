@@ -2,17 +2,17 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from utils.create_bot import _
-from utils.utils import payment_link_generate
+from utils.utils import payment_link_generate, GroupTypeSubscription
 
 
-def create_subscription_group_buttons_kb(chat_id, is_trial=False):
+async def create_subscription_group_buttons_kb(chat_id, is_trial=False):
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text='🔑 Пробний період (14 днів)',
-                              callback_data=f'subscription_group:free_trial:14:{chat_id}')] if is_trial else [],
+                              callback_data=f'subscription_group:{GroupTypeSubscription.FREE_TRIAL}:14:{chat_id}')] if is_trial else [],
         [InlineKeyboardButton(text='🔑 Підписка на аукціон (1 місяць)',
-                              callback_data=f'subscription_group:auction:30:{chat_id}')],
+                              callback_data=f'subscription_group:{GroupTypeSubscription.AUCTION}:30:{chat_id}')],
         [InlineKeyboardButton(text='🔑 Підписка на оголошення (1 місяць)',
-                              callback_data=f'subscription_group:ads:30:{chat_id}')],
+                              callback_data=f'subscription_group:{GroupTypeSubscription.ADVERTISEMENT}:30:{chat_id}')],
     ])
 
 
@@ -49,7 +49,7 @@ async def activate_ad_auction_kb(auction_token, ads_token, group_id, back_btn, f
             builder.button(text='Активувати оголошення', url=ads_payment_url)
         if free_trial == 0:
             builder.button(text='🔑 Пробний період (14 днів)',
-                           callback_data=f'subscription_group:free_trial:14:{group_id}')
+                           callback_data=f'subscription_group:{GroupTypeSubscription.FREE_TRIAL}:14:{group_id}')
         builder.button(text=_('🔄 Оновити статус'),
                        callback_data=f'{group_id}:{auction_token},{ads_token}:sub_update')
     builder.add(back_btn)
