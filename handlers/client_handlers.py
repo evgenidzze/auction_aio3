@@ -24,7 +24,7 @@ from database.services.user_service import UserService
 from utils.aiogram_media_group import media_group_handler
 from utils.config import DEV_ID, ADV_SUBSCRIPTION_PRICE
 
-from utils.create_bot import scheduler, _, i18n, bot, job_stores
+from utils.create_bot import scheduler, _, i18n, bot
 import keyboards.client_kb as client_kb
 from utils.paypal import get_order_status, create_order
 
@@ -32,7 +32,7 @@ from handlers.middleware import require_username, UserNotBlockedFilter, create_u
 from utils.utils import IsPrivateChatFilter, create_user_lots_kb, IsMessageType, generate_chats_kb, \
     gather_media_from_messages, is_media_count_allowed, send_post_fsm, send_post, user_sub_time_remain, \
     user_have_approved_adv_token, send_advert, new_bid_caption, lot_ending, adv_ending, repost_adv, payment_kb, \
-    payment_completed, create_lot_caption_and_kb, add_user_group_handler, deeplink_handler
+    payment_completed, create_lot_caption_and_kb, add_user_group_handler, deeplink_handler, UserTypeSubscription
 
 locale.setlocale(locale.LC_ALL, 'uk_UA.utf8')
 router = Router()
@@ -178,7 +178,7 @@ async def my_group_settings(call: types.CallbackQuery, state: FSMContext):
     await state.set_state(None)
     await state.update_data(my_group=call.data)
     user_group = await UserGroupService.get_user_group(call.from_user.id, call.data)
-    adv_time = await user_sub_time_remain(call.from_user.id, call.data)
+    adv_time = await user_sub_time_remain(call.from_user.id, group_id=call.data, func_type=UserTypeSubscription.ADVERTISEMENT)
     text = _("")
     await call.message.edit_text(text='Показати інфу про групу (статуси, підписки і т д)',
                                  reply_markup=client_kb.client_group_kb.as_markup())
@@ -374,7 +374,7 @@ async def ask_description_ad(call: types.CallbackQuery, state: FSMContext, **kwa
     await state.update_data(adv_group_id=call.data)
     await call.message.edit_text(text=_('Перевірка підписки...'))
     group_subscription = await GroupSubscriptionPlanService.get_subscription(call.data)
-    user_sub_time = await user_sub_time_remain(call.from_user.id, call.data)
+    user_sub_time = await user_sub_time_remain(call.from_user.id, group_id=call.data, func_type=UserTypeSubscription.AUCTION)
     group_sub_time = group_subscription.ads_sub_time - time.time()
     group_free_trial = group_subscription.free_trial - time.time()
 
