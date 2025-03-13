@@ -1,9 +1,10 @@
 import datetime
 import logging
 import time
-from typing import List, Literal, Tuple, Union
+from enum import Enum
+from typing import List, Literal, Tuple, Union, TypeAlias
 from aiogram import types
-from aiogram.enums import ContentType
+from aiogram.enums import ContentType, ChatType
 from aiogram.filters import BaseFilter
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.deep_linking import create_start_link
@@ -13,6 +14,7 @@ from aiogram.utils.media_group import MediaGroupBuilder
 import database.models.advertisement
 import database.models.lot
 from database.models.group_subscription_plan import GroupSubscriptionPlan
+from database.models.user_group import UserGroup
 from database.services.advertisement_service import AdvertisementService
 from database.services.base import delete_record_by_id
 from database.services.group_channel_service import GroupChannelService
@@ -20,21 +22,38 @@ from database.services.group_subscription_plan_service import GroupSubscriptionP
 from database.services.lot_service import LotService
 from database.services.user_group_service import UserGroupService
 from database.services.user_service import UserService
-from utils.create_bot import bot, scheduler, job_stores
+from utils.create_bot import bot, scheduler
 from keyboards.client_kb import decline_lot_btn, accept_lot_btn, back_to_main_btn, main_kb
 from utils.config import GALLERY_CHANNEL
 from utils.paypal import create_order, get_order_status, capture
 from utils.create_bot import _
 
-checkout_url = 'https://www.sandbox.paypal.com/checkoutnow?token={token}'
+# checkout_url = 'https://api-m.paypal.com/checkoutnow?token={token}' # prod
+checkout_url = 'https://www.sandbox.paypal.com/checkoutnow?token={token}'  # test
 
 
-# checkout_url = 'https://api-m.paypal.com/checkoutnow?token={token}'
+class UserTypeSubscription(str, Enum):
+    """
+    This object represents a type of User subscription
+    """
+
+    ADVERTISEMENT = 'ads'
+    AUCTION = 'auction'
+
+
+class GroupTypeSubscription(str, Enum):
+    """
+    This object represents a type of Group subscription
+    """
+
+    ADVERTISEMENT = 'ads'
+    AUCTION = 'auction'
+    FREE_TRIAL = 'free_trial'
 
 
 class IsPrivateChatFilter(BaseFilter):
     async def __call__(self, message: types.Message) -> bool:
-        return message.chat.type == "private"
+        return message.chat.type == ChatType.PRIVATE
 
 
 class IsMessageType(BaseFilter):
@@ -325,7 +344,10 @@ async def contact_payment_kb_generate(bidder_telegram_id, token, lot_id, owner_l
     return kb
 
 
-async def payment_completed(paypal_token):
+async def payment_completed(paypal_token) -> bool:
+    """
+    Підписує ордер та повертає його статус
+    """
     if paypal_token:
         await capture(order_id=paypal_token)
         status = await get_order_status(paypal_token)
@@ -390,6 +412,9 @@ async def adv_sub_time_remain(user_id, group_id):
 
 
 async def user_have_approved_adv_token(user_id, group_id) -> bool:
+    """
+    Підпис ордера при умові його наявності.
+    """
     user_group = await UserGroupService.get_user_group(user_id, group_id)
     token = user_group.user_adv_token
     if token:
