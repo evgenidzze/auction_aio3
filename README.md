@@ -29,6 +29,7 @@
    PARTNER_ID=your_paypal_partner_id
    DEV_ID=your_telegram_id
    USERNAME_BOT=your_bot_username
+   ADV_SUBSCRIPTION_PRICE=advertisement_subscription_price
    ```
 
 ### Налаштування PayPal для тестування
