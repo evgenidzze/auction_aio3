@@ -373,19 +373,24 @@ async def group_for_adv(call: types.CallbackQuery, state: FSMContext, **kwargs):
 async def ask_description_ad(call: types.CallbackQuery, state: FSMContext, **kwargs):
     await state.update_data(adv_group_id=call.data)
     await call.message.edit_text(text=_('Перевірка підписки...'))
-    is_subscribed = await adv_sub_time_remain(call.from_user.id, call.data)
-    if is_subscribed:
-        chats = await GroupChannelService.get_all_groups()
-        kb = await generate_chats_kb(chats)
-        kb.inline_keyboard.extend([[client_kb.back_to_ad_menu_btn]])
+    group_subscription = await GroupSubscriptionPlanService.get_subscription(call.data)
+    user_sub_time = await user_sub_time_remain(call.from_user.id, call.data)
+    group_sub_time = group_subscription.ads_sub_time - time.time()
+    group_free_trial = group_subscription.free_trial - time.time()
+
+    if group_subscription.ads_paid and (group_sub_time <= 0 and group_free_trial <= 0):  # в групи немає підписки
+        await call.message.edit_text(text=_('В групі не активована функція оголошень'),
+                                     reply_markup=client_kb.back_to_ad_menu_kb)
+        return
+    if user_sub_time > 0 or not group_subscription.ads_paid:  # в юзера є підписка або оголошення безкоштовні
         await call.message.edit_text(text=_('📝 Напишіть опис для оголошення:'),
                                      reply_markup=client_kb.reset_to_ad_menu_kb)
         await state.set_state(FSMClient.description_ad)
-    elif await user_have_approved_adv_token(call.from_user.id, group_id=call.data):
+    elif await user_have_approved_adv_token(call.from_user.id, group_id=call.data):  # TODO: замінити після реалізації payment webhook
         await UserGroupService.update_user_group(call.from_user.id, group_id=call.data,
                                                  advert_subscribe_time=604800 + time.time())
     else:
-        await call.message.edit_text(text=_('ℹ️ Щоб виставитиte оголошення, потрібно оформити підписку.'),
+        await call.message.edit_text(text=_('ℹ️ Щоб виставити оголошення, потрібно оформити підписку.'),
                                      reply_markup=client_kb.subscribe_adv_kb)
         await state.set_state(FSMClient.adv_sub_seconds)
 
