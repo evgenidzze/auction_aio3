@@ -41,7 +41,11 @@ class UserNotBlockedFilter(BaseFilter):
 def create_user_group(func):
     @wraps(func)
     async def wrapper(callback: CallbackQuery, *args, **kwargs):
-        await UserGroupService.create_user_group(user_id=callback.from_user.id, group_id=callback.message.chat.id)
+        message = getattr(callback, 'message', {})
+        chat = getattr(message, 'chat', {})
+        chat_type = getattr(chat, 'type', {})
+        if chat_type in (ChatType.GROUP, ChatType.SUPERGROUP, ChatType.CHANNEL):
+            await UserGroupService.create_user_group(user_id=callback.from_user.id, group_id=callback.message.chat.id)
         return await func(callback, *args, **kwargs)
 
     return wrapper
