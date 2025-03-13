@@ -2,6 +2,7 @@ import logging
 from typing import Dict, Any
 from aiogram import types, Bot
 from aiogram.client.session.middlewares.base import BaseRequestMiddleware, NextRequestMiddlewareType
+from aiogram.enums import ChatType
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 from aiogram.filters import BaseFilter
 from aiogram.methods.base import TelegramType, Response, TelegramMethod
@@ -11,7 +12,7 @@ from database.services.group_subscription_plan_service import GroupSubscriptionP
 from database.services.user_group_service import UserGroupService
 from database.services.user_service import UserService
 from utils.create_bot import i18n
-from utils.utils import translate_kb
+from utils.utils import translate_kb, GroupTypeSubscription
 from keyboards.client_kb import main_kb
 
 from functools import wraps
@@ -93,17 +94,17 @@ def subscription_group_required(*subscription_types: List[str]):
             chat_subscription = await GroupSubscriptionPlanService.get_subscription(
                 message.chat.id)  # Заміна на вашу функцію отримання групи
 
-            if "free_trial" in subscription_types:
+            if GroupTypeSubscription.FREE_TRIAL in subscription_types:
                 if chat_subscription.free_trial or datetime.utcnow().timestamp() < chat_subscription.free_trial:
                     # Ця функція доступна для груп з активним пробним періодом.
                     return await func(message, *args, **kwargs)
 
-            if "auction" in subscription_types:
+            if GroupTypeSubscription.AUCTION in subscription_types:
                 if chat_subscription.auction_paid:
                     # Ця функція доступна для груп з активною підпискою на лоти.
                     return await func(message, *args, **kwargs)
 
-            if "ads" in subscription_types:
+            if GroupTypeSubscription.ADVERTISEMENT in subscription_types:
                 if chat_subscription.ads_paid:
                     # Ця функція доступна для груп з активною підпискою на оголошення.
                     return await func(message, *args, **kwargs)
