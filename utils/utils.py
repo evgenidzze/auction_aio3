@@ -401,14 +401,13 @@ async def gather_media_from_messages(messages: List[types.Message], state) -> Tu
     return videos_id, photos_id
 
 
-async def adv_sub_time_remain(user_id, group_id):
+async def user_sub_time_remain(user_id, group_id, func_type: UserTypeSubscription):
     user_group = await UserGroupService.get_user_group(user_id, group_id)
-    adv_sub_time: int = user_group.advert_subscribe_time
+    sub_time_attr = {UserTypeSubscription.ADVERTISEMENT: user_group.advert_subscribe_time,
+                     UserTypeSubscription.AUCTION: user_group.auction_subscribe_time}
+    adv_sub_time: int = sub_time_attr[func_type]
     time_remain = adv_sub_time - time.time()
-    if time_remain > 0:
-        return True
-    else:
-        return False
+    return time_remain
 
 
 async def user_have_approved_adv_token(user_id, group_id) -> bool:
@@ -423,8 +422,8 @@ async def user_have_approved_adv_token(user_id, group_id) -> bool:
         return False
 
 
-async def get_token_approval(chat_subscription, type_: Literal['auction', 'ads']) -> bool:
-    if type_ == 'auction':
+async def get_token_approval(chat_subscription, type_: GroupTypeSubscription) -> bool:
+    if type_ == GroupTypeSubscription.AUCTION:
         token_approved = await payment_completed(chat_subscription.auction_token)
     else:
         token_approved = await payment_completed(chat_subscription.ads_token)
@@ -503,24 +502,27 @@ async def get_token_or_create_new(token, user_chat_id, token_type: str):
 
 
 async def generate_chats_kb(user_chats):
-    return InlineKeyboardMarkup(
-        inline_keyboard=[[InlineKeyboardButton(text=chat.chat_name, callback_data=chat.chat_id)] for chat in
-                         user_chats])
+    kb = InlineKeyboardBuilder()
+    for chat in user_chats:
+        if isinstance(chat, UserGroup):
+            chat = chat.group
+        kb.button(text=chat.chat_name, callback_data=chat.chat_id)
+    return kb.as_markup()
 
 
-async def create_monetization_text_and_kb(subscription: GroupSubscriptionPlan, chat_title, chat_id):
+async def create_monetization_text_and_kb(subscription: GroupSubscriptionPlan, chat_id):
     from keyboards.admin_kb import my_channels_groups_btn, back_to_monetization
     kb_builder = InlineKeyboardBuilder()
     text = '💰 Налаштування монетизації:\n\n'
 
     func_types = {
-        'lot': {
+        GroupTypeSubscription.AUCTION: {
             'active': subscription.auction_sub_time > time.time(),
             'paid': subscription.auction_paid,
             'name': 'лоти',
             'func_name': 'Аукціон'
         },
-        'ads': {
+        GroupTypeSubscription.ADVERTISEMENT: {
             'active': subscription.ads_sub_time > time.time(),
             'paid': subscription.ads_paid,
             'name': 'оголошення',
@@ -553,14 +555,15 @@ async def create_monetization_text_and_kb(subscription: GroupSubscriptionPlan, c
 
 async def check_group_subscriptions_db_and_paypal(group_id, chat_subscription):
     """
-    Перевіряє чи є підписка у БД.
+    Перевіряє чи є в групи підписка у БД.
     Якщо немає - перевірка оплати підписки.
     """
-    tokens = {'auction': None, 'ads': None}
+    tokens = {GroupTypeSubscription.AUCTION: None, GroupTypeSubscription.ADVERTISEMENT: None}
     sub_dates = {}
     current_time = time.time()
-
-    for sub_type, sub_time_attr in [('auction', 'auction_sub_time'), ('ads', 'ads_sub_time'), ]:
+    function_attr_names = [(GroupTypeSubscription.AUCTION, 'auction_sub_time',),
+                           (GroupTypeSubscription.ADVERTISEMENT, 'ads_sub_time',)]
+    for sub_type, sub_time_attr in function_attr_names:
         sub_time = getattr(chat_subscription, sub_time_attr)
         if sub_time > current_time:  # чи є підписка у БД
             sub_dates[sub_type] = f'активовано до {datetime.datetime.fromtimestamp(sub_time).strftime("%d.%m.%Y")}'
