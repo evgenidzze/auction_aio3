@@ -49,7 +49,7 @@ async def send_end_subscription_message(owner_id: str, chat_id: str, group_title
 
     # to owner
     await bot.send_message(owner_id, f"{message[0]} '{group_title}'",
-                           reply_markup=create_subscription_group_buttons_kb(chat_id))
+                           reply_markup=await create_subscription_group_buttons_kb(chat_id))
     # to groups
     await bot.send_message(chat_id, message[1])
 
