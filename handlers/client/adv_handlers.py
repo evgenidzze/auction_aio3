@@ -5,7 +5,7 @@ from copy import deepcopy
 from random import randint
 from typing import List
 
-from aiogram import types, F
+from aiogram import types, F, Router
 from aiogram.enums import ContentType
 from aiogram.fsm.context import FSMContext
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -19,7 +19,7 @@ from database.services.user_group_service import UserGroupService
 from database.services.user_service import UserService
 from utils.aiogram_media_group import media_group_handler
 from utils.config import ADV_SUBSCRIPTION_PRICE
-from handlers.client.general_handlers import callback_query, FSMClient, message
+from handlers.client.general_handlers import FSMClient
 
 from utils.create_bot import scheduler, _, bot
 import keyboards.client_kb as client_kb
@@ -31,13 +31,13 @@ from utils.utils import create_user_lots_kb, IsMessageType, generate_chats_kb, \
     send_advert, adv_ending, repost_adv, payment_kb, \
     payment_completed, UserTypeSubscription
 
-
-@callback_query(F.data == 'ad_menu')
+router = Router()
+@router.callback_query(F.data == 'ad_menu')
 async def add_menu(call: types.CallbackQuery, **kwargs):
     await call.message.edit_text(text=_('Ви обрали 📣 Оголошення'), reply_markup=client_kb.add_menu_kb)
 
 
-@callback_query(F.data == 'my_ads')
+@router.callback_query(F.data == 'my_ads')
 async def my_ads(call: types.CallbackQuery, state: FSMContext, **kwargs):
     ads = await AdvertisementService.get_user_ads(call.from_user.id)
     kb = await create_user_lots_kb(ads)
@@ -47,7 +47,7 @@ async def my_ads(call: types.CallbackQuery, state: FSMContext, **kwargs):
                                  reply_markup=kb)
 
 
-@callback_query(F.data == 'create_ad')
+@router.callback_query(F.data == 'create_ad')
 @require_username
 async def group_for_adv(call: types.CallbackQuery, state: FSMContext, **kwargs):
     chats = await UserGroupService.get_user_groups(call.from_user.id)
@@ -57,37 +57,38 @@ async def group_for_adv(call: types.CallbackQuery, state: FSMContext, **kwargs):
     await call.message.edit_text(text='Оберіть групу в якій хочете виставити оголошення:', reply_markup=kb)
 
 
-@callback_query(FSMClient.adv_group_id)
+@router.callback_query(FSMClient.adv_group_id)
 async def ask_description_ad(call: types.CallbackQuery, state: FSMContext, **kwargs):
+    """
+    Етап вводу опису для оголошення.
+    Cases:
+        - В групи немає підписки на оголошення
+        - В юзера немає підписки на оголошення
+        - В юзера є підписка або в групі free_trial
+    """
     await state.update_data(adv_group_id=call.data)
     await call.message.edit_text(text=_('Перевірка підписки...'))
     group_subscription = await GroupSubscriptionPlanService.get_subscription(call.data)
-    user_sub_time = await user_sub_time_remain(call.from_user.id, group_id=call.data,
-                                               func_type=UserTypeSubscription.AUCTION)
+    user_sub_time = await user_sub_time_remain(call.from_user.id,
+                                               group_id=call.data,
+                                               func_type=UserTypeSubscription.ADVERTISEMENT)
     group_sub_time = group_subscription.ads_sub_time - time.time()
     group_free_trial = group_subscription.free_trial - time.time()
 
     if group_subscription.ads_paid and (group_sub_time <= 0 and group_free_trial <= 0):  # в групи немає підписки
         await call.message.edit_text(text=_('В групі не активована функція оголошень'),
                                      reply_markup=client_kb.back_to_ad_menu_kb)
-        return
-    if user_sub_time > 0 or not group_subscription.ads_paid:  # в юзера є підписка або оголошення безкоштовні
+    elif user_sub_time > 0 or not group_subscription.ads_paid:  # в юзера є підписка або оголошення безкоштовні
         await call.message.edit_text(text=_('📝 Напишіть опис для оголошення:'),
                                      reply_markup=client_kb.reset_to_ad_menu_kb)
         await state.set_state(FSMClient.description_ad)
-    # elif await user_have_approved_adv_token(call.from_user.id, group_id=call.data):
-    #     await UserGroupService.update_user_group(call.from_user.id, group_id=call.data,
-    #                                              advert_subscribe_time=604800 + time.time())
-    #     await call.message.edit_text(text=_('📝 Напишіть опис для оголошення:'),
-    #                                  reply_markup=client_kb.reset_to_ad_menu_kb)
-    #     await state.set_state(FSMClient.description_ad)
     else:
         await call.message.edit_text(text=_('ℹ️ Щоб виставити оголошення, потрібно оформити підписку.'),
                                      reply_markup=client_kb.subscribe_adv_kb)
         await state.set_state(FSMClient.adv_sub_seconds)
 
 
-@message(FSMClient.description_ad, IsMessageType(message_type=[ContentType.TEXT]))
+@router.message(FSMClient.description_ad, IsMessageType(message_type=[ContentType.TEXT]))
 async def ask_city_ad(message: types.Message, state: FSMContext, **kwargs):
     if isinstance(message, types.Message):
         await state.update_data(description=message.text)
@@ -97,7 +98,7 @@ async def ask_city_ad(message: types.Message, state: FSMContext, **kwargs):
                              reply_markup=client_kb.reset_to_ad_menu_kb)
 
 
-@message(FSMClient.city_ad, IsMessageType(message_type=[ContentType.TEXT]))
+@router.message(FSMClient.city_ad, IsMessageType(message_type=[ContentType.TEXT]))
 async def ask_media_ad(message: types.Message, state: FSMContext, **kwargs):
     text = _('📸 Надішліть фото і відео:\n'
              '<i>До 5 фото та до 1 відео</i>')
@@ -109,9 +110,9 @@ async def ask_media_ad(message: types.Message, state: FSMContext, **kwargs):
     await state.set_state(FSMClient.media_ad)
 
 
-@message(FSMClient.media_ad)
-@message(FSMClient.change_media_ad)
-@callback_query(F.data == 'back_to_ready_ad')
+@router.message(FSMClient.media_ad)
+@router.message(FSMClient.change_media_ad)
+@router.callback_query(F.data == 'back_to_ready_ad')
 @media_group_handler
 async def save_media_ad(messages: List[types.Message], state: FSMContext, **kwargs):
     await state.update_data(is_ad=True)
@@ -135,7 +136,7 @@ async def save_media_ad(messages: List[types.Message], state: FSMContext, **kwar
         return
 
 
-@callback_query(F.data == 'publish_adv')
+@router.callback_query(F.data == 'publish_adv')
 async def adv_publish(message, state, **kwargs):
     fsm_data = await state.get_data()
     video_id = fsm_data.get('video_id')
@@ -162,8 +163,8 @@ async def adv_publish(message, state, **kwargs):
         reply_markup=client_kb.main_kb)
 
 
-@callback_query(F.data == 'show_ad')
-@callback_query(FSMClient.change_ad)
+@router.callback_query(F.data == 'show_ad')
+@router.callback_query(FSMClient.change_ad)
 async def show_ad(message: types.CallbackQuery, state: FSMContext, **kwargs):
     ad_id = message.data
     if not (ad_id.isdigit()):
@@ -184,7 +185,7 @@ async def show_ad(message: types.CallbackQuery, state: FSMContext, **kwargs):
                                  reply_markup=client_kb.delete_ad_kb)
 
 
-@callback_query(F.data == 'delete_ad')
+@router.callback_query(F.data == 'delete_ad')
 async def delete_ad(call: types.CallbackQuery, state: FSMContext, **kwargs):
     fsm_data = await state.get_data()
     ad_id = fsm_data.get('change_ad')
@@ -204,7 +205,7 @@ async def delete_ad(call: types.CallbackQuery, state: FSMContext, **kwargs):
         scheduler.remove_job(f'adv_{ad_id}')
 
 
-@callback_query(F.data.startswith('accept_adv'))
+@router.callback_query(F.data.startswith('accept_adv'))
 async def accept_adv(call: types.CallbackQuery, state: FSMContext, **kwargs):
     accept = call.data.split('_')
     new_adv_id = accept[-1]
@@ -268,7 +269,7 @@ async def accept_adv(call: types.CallbackQuery, state: FSMContext, **kwargs):
         await call.answer(text=_('Оголошення вже відхилено.'))
 
 
-@callback_query(F.data.startswith('decline_adv'))
+@router.callback_query(F.data.startswith('decline_adv'))
 async def decline_adv(call: types.CallbackQuery, **kwargs):
     decline = call.data.split('_')
     new_adv_id = decline[-1]
@@ -289,7 +290,7 @@ async def decline_adv(call: types.CallbackQuery, **kwargs):
         await call.answer(text=_('Оголошення вже відхилено.'))
 
 
-@callback_query(FSMClient.adv_sub_seconds)
+@router.callback_query(FSMClient.adv_sub_seconds)
 async def create_adv_sub(call: types.CallbackQuery, state: FSMContext, **kwargs):
     await state.set_state(None)
     data = await state.get_data()
@@ -314,7 +315,7 @@ async def create_adv_sub(call: types.CallbackQuery, state: FSMContext, **kwargs)
                                         'Оплатіть підписку натиснувши на кнопку нижче 👇'), reply_markup=kb)
 
 
-@callback_query(F.data.startswith('edit_ad_text'))
+@router.callback_query(F.data.startswith('edit_ad_text'))
 async def edit_ad_text(call: types.CallbackQuery, state: FSMContext, **kwargs):
     obj_id = call.data.split(':')[-2]
     action = call.data.split(':')[-1]
@@ -363,7 +364,7 @@ async def edit_ad_text(call: types.CallbackQuery, state: FSMContext, **kwargs):
             await call.answer('Запит вже оброблено.')
 
 
-@callback_query(FSMClient.repost_count_answer)
+@router.callback_query(FSMClient.repost_count_answer)
 async def republish_adv(call: types.CallbackQuery, state: FSMContext, **kwargs):
     await call.answer()
     answer = call.data
@@ -376,7 +377,7 @@ async def republish_adv(call: types.CallbackQuery, state: FSMContext, **kwargs):
         return
 
 
-@callback_query(FSMClient.repost_count)
+@router.callback_query(FSMClient.repost_count)
 async def save_repost_count(call: types.CallbackQuery, state: FSMContext, **kwargs):
     if isinstance(call, types.CallbackQuery):
         if call.data in ('1', '2', '3'):
@@ -394,7 +395,7 @@ async def save_repost_count(call: types.CallbackQuery, state: FSMContext, **kwar
                            reply_to_message_id=last_message_id)
 
 
-@callback_query(F.data.startswith('update:'))
+@router.callback_query(F.data.startswith('update:'))
 async def update_adv_payment_status(call: types.CallbackQuery, state: FSMContext, **kwargs):
     token = call.data.split(':')[1]
     group_id = call.data.split(':')[2]

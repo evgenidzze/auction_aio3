@@ -62,11 +62,11 @@ class GroupSubscriptionPlanService:
             if not subscription:
                 await GroupSubscriptionPlanService.create_subscription(
                     chat_id=group_id,
-                    auction_sub_time=0,  # Значення за замовчуванням
+                    auction_sub_time=0,
                     auction_paid=False,
                     auction_token=None,
                     ads_sub_time=0,
-                    ads_paid=True,
+                    ads_paid=False,
                     ads_token=None,
                     free_trial=0
                 )

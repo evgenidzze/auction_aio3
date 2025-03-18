@@ -1,7 +1,7 @@
 import asyncio
 from aiogram.types import BotCommand
 from database.services.base import on_startup
-from handlers.client import general_handlers
+from handlers.client import general_handlers, lot_handlers, adv_handlers
 from utils.create_bot import dp, bot, i18n, scheduler
 from handlers import admin
 from handlers.middleware import Localization, ChangeLanguageMiddleware
@@ -13,8 +13,10 @@ async def main():
     set_logging()
 
     router = Router()
-    router.include_router(admin.router)  # Include admin handlers
-    router.include_router(general_handlers.router)  # Include client handlers
+    router.include_router(lot_handlers.router)
+    router.include_router(admin.router)
+    router.include_router(adv_handlers.router)
+    router.include_router(general_handlers.router)
 
     Localization(i18n=i18n).setup(router)
     bot.session.middleware(ChangeLanguageMiddleware())

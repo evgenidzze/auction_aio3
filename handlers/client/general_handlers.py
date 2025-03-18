@@ -14,17 +14,13 @@ from database.services.group_channel_service import GroupChannelService
 from database.services.lot_service import LotService
 from database.services.user_group_service import UserGroupService
 from database.services.user_service import UserService
-from handlers.client.adv_handlers import save_media_ad
-from handlers.client.lot_handlers import ready_lot
 from utils.create_bot import scheduler, _, i18n, bot
 from utils.utils import IsPrivateChatFilter, send_post, user_sub_time_remain, \
     send_advert, add_user_group_handler, deeplink_handler, UserTypeSubscription
 
 locale.setlocale(locale.LC_ALL, 'uk_UA.utf8')
-router = Router()
 
-message = router.message
-callback_query = router.callback_query
+router = Router()
 
 
 class FSMClient(StatesGroup):
@@ -64,8 +60,8 @@ class FSMClient(StatesGroup):
     adv_group_id = State()
 
 
-@message(CommandStart(), IsPrivateChatFilter())
-@message(CommandStart(deep_link=True), IsPrivateChatFilter())
+@router.message(CommandStart(), IsPrivateChatFilter())
+@router.message(CommandStart(deep_link=True), IsPrivateChatFilter())
 async def start(message: types.Message, state: FSMContext, command: CommandObject, **kwargs):
     """/start"""
     await state.clear()
@@ -84,9 +80,9 @@ async def start(message: types.Message, state: FSMContext, command: CommandObjec
                                         reply_markup=client_kb.language_kb)
 
 
-@callback_query(FSMClient.language)
-@callback_query(F.data == 'main_menu')
-@message(Command('main_menu'), IsPrivateChatFilter())
+@router.callback_query(FSMClient.language)
+@router.callback_query(F.data == 'main_menu')
+@router.message(Command('main_menu'), IsPrivateChatFilter())
 async def main_menu(call, state: FSMContext, **kwargs):
     """/main_menu"""
     data = await state.get_data()
@@ -109,12 +105,12 @@ async def main_menu(call, state: FSMContext, **kwargs):
         await call.message.edit_text(text=text, reply_markup=client_kb.main_kb)
 
 
-@callback_query(F.data == 'groups_and_channels')
+@router.callback_query(F.data == 'groups_and_channels')
 async def groups_and_channels(call: types.CallbackQuery, **kwargs):
     await call.message.edit_text(text=_('Ви обрали 👥 Групи та канали'), reply_markup=client_kb.group_channels_kb)
 
 
-@callback_query(F.data == 'other_channels_groups')
+@router.callback_query(F.data == 'other_channels_groups')
 async def other_channels_groups(call: types.CallbackQuery, **kwargs):
     other_chats = await GroupChannelService.get_all_groups()
     kb = InlineKeyboardMarkup(
@@ -125,7 +121,7 @@ async def other_channels_groups(call: types.CallbackQuery, **kwargs):
                                  reply_markup=kb)
 
 
-@callback_query(F.data == 'my_channels_groups')
+@router.callback_query(F.data == 'my_channels_groups')
 async def my_channels_groups(call: types.CallbackQuery, state: FSMContext, **kwargs):
     my_chats = await UserGroupService.get_user_groups(call.from_user.id)
     await state.set_state(FSMClient.my_group)
@@ -138,7 +134,7 @@ async def my_channels_groups(call: types.CallbackQuery, state: FSMContext, **kwa
                                  reply_markup=kb)
 
 
-@callback_query(FSMClient.my_group)
+@router.callback_query(FSMClient.my_group)
 async def my_group_settings(call: types.CallbackQuery, state: FSMContext):
     await state.set_state(None)
     await state.update_data(my_group=call.data)
@@ -150,7 +146,7 @@ async def my_group_settings(call: types.CallbackQuery, state: FSMContext):
                                  reply_markup=client_kb.client_group_kb.as_markup())
 
 
-@callback_query(F.data == 'del_client_group')
+@router.callback_query(F.data == 'del_client_group')
 async def del_client_group(call: types.CallbackQuery, state: FSMContext):
     fsm_data = await state.get_data()
     my_group = fsm_data.get('my_group')
@@ -158,7 +154,7 @@ async def del_client_group(call: types.CallbackQuery, state: FSMContext):
     await call.message.edit_text(text='✅ Групу видалено зі списку', reply_markup=client_kb.main_kb)
 
 
-@callback_query(F.data == 'help')
+@router.callback_query(F.data == 'help')
 async def help_(call: types.CallbackQuery, **kwargs):
     await call.message.edit_text(text=_("По всім запитанням @Oleksandr_Polis\n\n"
                                         "<i>Що таке <a href='https://telegra.ph/Antisnajper-03-31'>"
@@ -167,7 +163,7 @@ async def help_(call: types.CallbackQuery, **kwargs):
                                  disable_web_page_preview=True)
 
 
-@callback_query(F.data == 'change_media')
+@router.callback_query(F.data == 'change_media')
 async def change_media(call: types.CallbackQuery, state: FSMContext, **kwargs):
     data = await state.get_data()
     if data.get('is_ad'):
@@ -181,7 +177,7 @@ async def change_media(call: types.CallbackQuery, state: FSMContext, **kwargs):
                                  )
 
 
-@callback_query(F.data == 'change_desc')
+@router.callback_query(F.data == 'change_desc')
 async def change_desc(call: types.CallbackQuery, state: FSMContext, **kwargs):
     await state.set_state(FSMClient.change_desc)
     data = await state.get_data()
@@ -197,7 +193,7 @@ async def change_desc(call: types.CallbackQuery, state: FSMContext, **kwargs):
                                  reply_markup=kb)
 
 
-@callback_query(F.data == 'change_city')
+@router.callback_query(F.data == 'change_city')
 async def change_city(call: types.CallbackQuery, state: FSMContext, **kwargs):
     data = await state.get_data()
     await state.set_state(FSMClient.change_city)
@@ -209,27 +205,31 @@ async def change_city(call: types.CallbackQuery, state: FSMContext, **kwargs):
     await call.message.edit_text(text=_('Надішліть нову назву міста:'), reply_markup=kb)
 
 
-@message(FSMClient.change_city)
+@router.message(FSMClient.change_city)
 async def set_new_city(message: types.Message, state: FSMContext, **kwargs):
     await state.update_data(city=message.text)
     data = await state.get_data()
     if data.get('is_ad'):
+        from handlers.client.adv_handlers import save_media_ad
         await save_media_ad(message, state)
     else:
+        from handlers.client.lot_handlers import ready_lot
         await ready_lot(message, state)
 
 
-@message(FSMClient.change_desc)
+@router.message(FSMClient.change_desc)
 async def set_desc(message: types.Message, state: FSMContext, **kwargs):
     await state.update_data(description=message.text)
     data = await state.get_data()
     if data.get('is_ad'):
+        from handlers.client.adv_handlers import save_media_ad
         await save_media_ad(message, state)
     else:
+        from handlers.client.lot_handlers import ready_lot
         await ready_lot(message, state)
 
 
-@callback_query(F.data.startswith('time_left'))
+@router.callback_query(F.data.startswith('time_left'))
 async def time_left_popup(call: types.CallbackQuery, state: FSMContext, **kwargs):
     data = call.data.split('_')
     lot_id = data[-1]
@@ -261,7 +261,8 @@ async def time_left_popup(call: types.CallbackQuery, state: FSMContext, **kwargs
     else:
         await call.answer(text=not_published_text)
 
-@callback_query(F.data.startswith('change_desc_exist'))
+
+@router.callback_query(F.data.startswith('change_desc_exist'))
 async def change_desc_exist(call: types.CallbackQuery, state: FSMContext, **kwargs):
     data = await state.get_data()
     object_type = call.data.split('_')[-1]
@@ -277,7 +278,7 @@ async def change_desc_exist(call: types.CallbackQuery, state: FSMContext, **kwar
     await call.message.edit_text(text=text, reply_markup=kb)
 
 
-@message(FSMClient.new_desc_exist)
+@router.message(FSMClient.new_desc_exist)
 async def request_new_desc(message: types.Message, state: FSMContext, **kwargs):
     fsm_data = await state.get_data()
     object_type = fsm_data.get('object_type')
