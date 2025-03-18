@@ -1,11 +1,9 @@
 import asyncio
-
-from aiogram.methods import DeleteWebhook
 from aiogram.types import BotCommand
-
 from database.services.base import on_startup
+from handlers.client import general_handlers
 from utils.create_bot import dp, bot, i18n, scheduler
-from handlers import admin, client_handlers
+from handlers import admin
 from handlers.middleware import Localization, ChangeLanguageMiddleware
 from utils.utils import set_logging
 from aiogram import Router
@@ -16,7 +14,7 @@ async def main():
 
     router = Router()
     router.include_router(admin.router)  # Include admin handlers
-    router.include_router(client_handlers.router)  # Include client handlers
+    router.include_router(general_handlers.router)  # Include client handlers
 
     Localization(i18n=i18n).setup(router)
     bot.session.middleware(ChangeLanguageMiddleware())
