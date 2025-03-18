@@ -15,7 +15,7 @@ from database.services.group_channel_service import GroupChannelService
 from database.services.lot_service import LotService
 from database.services.user_group_service import UserGroupService
 from database.services.user_service import UserService
-from handlers.client.main_handlers import callback_query, FSMClient, message
+from handlers.client.general_handlers import callback_query, FSMClient, message
 from handlers.middleware import require_username, UserNotBlockedFilter, create_user_group
 from utils.aiogram_media_group import media_group_handler
 from utils.config import DEV_ID
