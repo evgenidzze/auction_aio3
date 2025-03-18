@@ -143,7 +143,8 @@ async def group_id_settings(call: types.CallbackQuery, state: FSMContext, chat_i
 @router.callback_query(F.data.startswith('paid:'))
 async def paid_chat_function(call: types.CallbackQuery, state: FSMContext):
     action_to_boolean = {'activate': 1, 'deactivate': 0}
-    func_type_to_db_column_name = {GroupTypeSubscription.AUCTION: 'auction_paid', GroupTypeSubscription.ADVERTISEMENT: 'ads_paid'}
+    func_type_to_db_column_name = {GroupTypeSubscription.AUCTION: 'auction_paid',
+                                   GroupTypeSubscription.ADVERTISEMENT: 'ads_paid'}
 
     func_type, action, group_id = call.data.split(':')[1:]
     kwargs = {func_type_to_db_column_name[func_type]: action_to_boolean[action]}
@@ -218,11 +219,22 @@ async def update_bot_subscription_status(call):
         return
 
 
+@router.chat_member()
+async def user_joined_group(chat_member: types.ChatMemberUpdated):
+    if chat_member.new_chat_member.status in (ChatMemberStatus.MEMBER, ChatMemberStatus.CREATOR):
+        group = await GroupChannelService.get_group_record(chat_member.chat.id)
+        await UserGroupService.create_user_group(user_id=chat_member.from_user.id, group_id=chat_member.chat.id)
+        await bot.send_message(chat_id=chat_member.from_user.id,
+                               text=_(
+                                   "Групу <a href='{gr_link}'><b>{gr_name}</b></a> додано в список ваших груп.").format(
+                                   gr_link=group.chat_link,
+                                   gr_name=chat_member.chat.title), reply_markup=main_kb)
+
+
 @router.my_chat_member()
 async def my_chat_member_handler(my_chat_member: types.ChatMemberUpdated):
     """
     Обробка подій приєднання бота до групи.
-
     Приєднання зараховується, якщо бот має права адміністратора.
     """
     if my_chat_member.chat.type not in {ChatType.CHANNEL, ChatType.GROUP, ChatType.SUPERGROUP}:
@@ -253,7 +265,10 @@ async def my_chat_member_handler(my_chat_member: types.ChatMemberUpdated):
 
     if new_status == ChatMemberStatus.ADMINISTRATOR or new_status == ChatMemberStatus.MEMBER:
 
-        chat_link = await bot.export_chat_invite_link(chat_id=my_chat_member.chat.id)
+        chat = await bot.get_chat(chat_id=my_chat_member.chat.id)
+        chat_link = f"https://t.me/{chat.username}"
+        if not chat.username:
+            chat_link = await chat.export_invite_link()
         await GroupChannelService.create_group(
             owner_telegram_id=user_id,
             chat_id=my_chat_member.chat.id,
@@ -280,7 +295,8 @@ class SubscriptionGroupHandler:
     async def scheduled_job_subscribe_is_ending(owner_id: str, type_subscription: GroupTypeSubscription):
         """Повідомлення за добу до закінчення підписки."""
         message = {
-            GroupTypeSubscription.ADVERTISEMENT: _('Ваша підписка на оголошення добігає кінця. Поповніть підписку.'),
+            GroupTypeSubscription.ADVERTISEMENT: _(
+                'Ваша підписка на оголошення добігає кінця. Поповніть підписку.'),
             GroupTypeSubscription.AUCTION: _('Ваша підписка на аукціон добігає кінця. Поповніть підписку.'),
             GroupTypeSubscription.FREE_TRIAL: _('Ваш пробний період добігає кінця. Поповніть підписку.'),
         }[type_subscription]
@@ -344,7 +360,8 @@ class SubscriptionGroupHandler:
         elif type_subscribe == GroupTypeSubscription.AUCTION:
             auction_update_duration = max(chat_subscription.auction_sub_time, current_time) + duration_days * 86400
 
-            if await self.payment_process(owner_chat_id, group_chat_id, GroupTypeSubscription.AUCTION, duration_days):
+            if await self.payment_process(owner_chat_id, group_chat_id, GroupTypeSubscription.AUCTION,
+                                          duration_days):
                 return None
             self.create_task_subscribe_is_ending(owner_chat_id, group_chat_id, GroupTypeSubscription.AUCTION,
                                                  duration_days)
