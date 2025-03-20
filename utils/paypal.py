@@ -72,16 +72,6 @@ async def create_order(usd, payer_tg_id, merchant_id=None):
             return token
 
 
-async def capture(order_id):
-    capture_url = f"{api_domain}/v2/checkout/orders/{order_id}/capture"
-    headers = {
-        "Content-Type": "application/json",
-    }
-    async with aiohttp.ClientSession() as session:
-        async with session.post(capture_url, headers=headers, auth=BasicAuth(PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET)):
-            pass
-
-
 async def get_order_status(order_id):
     headers = {
         "Content-Type": "application/json",
