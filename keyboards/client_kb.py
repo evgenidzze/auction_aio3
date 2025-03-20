@@ -123,7 +123,7 @@ reset_to_ad_menu_kb = InlineKeyboardMarkup(inline_keyboard=[[reset_to_ad_menu_bt
 back_to_ad_menu_kb = InlineKeyboardMarkup(inline_keyboard=[[back_to_ad_menu_btn]])
 
 my_channels_groups = InlineKeyboardButton(text='Мої групи', callback_data='my_channels_groups')
-other_channels_groups = InlineKeyboardButton(text='Інші групи', callback_data='other_channels_groups')
+other_channels_groups = InlineKeyboardButton(text='Всі групи', callback_data='other_channels_groups')
 group_channels_kb = InlineKeyboardMarkup(
     inline_keyboard=[[my_channels_groups], [other_channels_groups], [back_to_main_btn]])
 
