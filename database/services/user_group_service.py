@@ -58,7 +58,7 @@ class UserGroupService:
     @staticmethod
     async def get_user_group(user_id, group_id):
         async with async_session() as session:
-            stmt = select(UserGroup).where(UserGroup.user_id == user_id, UserGroup.group_id == group_id)
+            stmt = select(UserGroup).options(selectinload(UserGroup.group)).where(UserGroup.user_id == user_id, UserGroup.group_id == group_id)
             res = await session.execute(stmt)
             user_group = res.scalars().first()
             if user_group:
