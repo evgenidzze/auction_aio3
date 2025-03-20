@@ -29,9 +29,11 @@ from handlers.middleware import require_username
 from utils.utils import create_user_lots_kb, IsMessageType, generate_chats_kb, \
     gather_media_from_messages, is_media_count_allowed, send_post_fsm, user_sub_time_remain, \
     send_advert, adv_ending, repost_adv, payment_kb, \
-    payment_completed, UserTypeSubscription
+     UserTypeSubscription
 
 router = Router()
+
+
 @router.callback_query(F.data == 'ad_menu')
 async def add_menu(call: types.CallbackQuery, **kwargs):
     await call.message.edit_text(text=_('Ви обрали 📣 Оголошення'), reply_markup=client_kb.add_menu_kb)
@@ -310,7 +312,7 @@ async def create_adv_sub(call: types.CallbackQuery, state: FSMContext, **kwargs)
                                    payer_tg_id=call.from_user.id)
         await UserGroupService.update_user_group(call.from_user.id, group_id=adv_group_id, user_adv_token=token)
 
-    kb = await payment_kb(token, activate_btn_text=_('Оплатити 15$'), callback_data=f'update:{token}:{adv_group_id}')
+    kb = await payment_kb(token, activate_btn_text=_('Оплатити 15$'))
     await call.message.edit_text(text=_('💲 Вартість підписки 15$ на 30 днів.\n\n'
                                         'Оплатіть підписку натиснувши на кнопку нижче 👇'), reply_markup=kb)
 
@@ -393,18 +395,3 @@ async def save_repost_count(call: types.CallbackQuery, state: FSMContext, **kwar
     await send_post_fsm(fsm_data, call.from_user.id, is_ad=True)
     await bot.send_message(chat_id=call.from_user.id, text=text, reply_markup=kb,
                            reply_to_message_id=last_message_id)
-
-
-@router.callback_query(F.data.startswith('update:'))
-async def update_adv_payment_status(call: types.CallbackQuery, state: FSMContext, **kwargs):
-    token = call.data.split(':')[1]
-    group_id = call.data.split(':')[2]
-    payment = await payment_completed(token)
-    if payment:
-        await UserGroupService.update_user_group(call.from_user.id, group_id=group_id,
-                                                 advert_subscribe_time=604800 + time.time())
-        await call.message.edit_text(text=_('✅ Вітаю! Підписку на виставлення оголошень успішно оформлено на 30 днів.'),
-                                     reply_markup=client_kb.main_kb)
-    else:
-        kb = await payment_kb(token, activate_btn_text=_('Оплатити 15$'), callback_data=f'update:{token}:{group_id}')
-        await call.message.edit_text(text=_('⚠️ Оплату не зафіксовано'), reply_markup=kb)
