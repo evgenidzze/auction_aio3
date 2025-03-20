@@ -46,7 +46,7 @@ async def my_auctions(call: types.CallbackQuery, state: FSMContext, **kwargs):
 @router.callback_query(F.data == 'create_auction', IsMessageType(message_type=[ContentType.TEXT]))
 @require_username
 async def lot_group(call: types.CallbackQuery, state: FSMContext, **kwargs):
-    chats = await GroupChannelService.get_all_groups()  # замінити на групи користувача
+    chats = await UserGroupService.get_user_groups(call.from_user.id)  # замінити на групи користувача
     kb = await generate_chats_kb(chats)
     kb.inline_keyboard.extend([[client_kb.reset_to_auction_menu_btn]])
     await state.set_state(FSMClient.lot_group_id)
