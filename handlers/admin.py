@@ -6,6 +6,7 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.utils.deep_linking import create_start_link
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from database.services.group_channel_service import GroupChannelService
@@ -14,12 +15,12 @@ from database.services.user_group_service import UserGroupService
 from utils.create_bot import job_stores, bot, _
 
 from keyboards.admin_kb import back_to_admin_btn, \
-    unblock_user_btn, block_user_btn, back_my_channels_groups, \
+    unblock_user_btn, block_user_btn, \
     activate_ad_auction_kb, admin_menu_kb, add_group_kb, back_to_admin_kb
 from keyboards.client_kb import main_kb
 from utils.paypal import create_partner_referral_url_and_token, user_is_merchant_api
-from utils.utils import payment_completed, \
-    generate_chats_kb, create_monetization_text_and_kb, check_group_subscriptions_db_and_paypal, GroupTypeSubscription
+from utils.utils import \
+    generate_chats_kb, create_monetization_text_and_kb, get_tokens_and_finish_dates, GroupTypeSubscription
 
 from utils.create_bot import scheduler
 from apscheduler.jobstores.base import JobLookupError
@@ -173,10 +174,9 @@ async def my_channels_groups(call: types.CallbackQuery, state: FSMContext):
 
 
 @router.callback_query(FSMAdmin.group_id)
-async def user_chat_menu(call: types.CallbackQuery):
+async def user_chat_menu(call: types.CallbackQuery, state: FSMContext):
     """Після натискання на кнопку Функціонал груп та вибору групи"""
     await call.message.edit_text(text=_('Перевірка підписки...'))
-
     group_id = call.data.split(':')[0]
     chat_subscription = await GroupSubscriptionPlanService.get_subscription(group_id)
     if chat_subscription.free_trial > time.time():
@@ -187,36 +187,26 @@ async def user_chat_menu(call: types.CallbackQuery):
         builder.add(back_to_admin_btn)
         kb = builder.as_markup()
     else:
-        sub_dates, tokens = await check_group_subscriptions_db_and_paypal(group_id=group_id,
-                                                                          chat_subscription=chat_subscription)
-        text = (
+        sub_dates, tokens = await get_tokens_and_finish_dates(group_id, chat_subscription=chat_subscription)
+        text = _(
             f'Оголошення {sub_dates[GroupTypeSubscription.ADVERTISEMENT]}\n'
             f'Аукціон {sub_dates[GroupTypeSubscription.AUCTION]}'
         )
         kb = await activate_ad_auction_kb(
             auction_token=tokens[GroupTypeSubscription.AUCTION],
             ads_token=tokens[GroupTypeSubscription.ADVERTISEMENT],
-            back_btn=back_my_channels_groups,
             group_id=group_id,
             free_trial=chat_subscription.free_trial
         )
+    if call.id == 'bot_connect':
+        data = await state.get_data()
+        connected_group = data.get('connected_group')
+        url = await create_start_link(bot, connected_group)
+        text = _('{text}\n\n'
+                 'Поділіться цим посиланням з підписниками вашої групи, щоб вони могли створити аукціон або оголошення.\n'
+                 '{url}').format(text=text, url=url)
 
     await call.message.edit_text(text=text, reply_markup=kb)
-
-
-@router.callback_query(F.data.endswith('sub_update'))
-async def update_bot_subscription_status(call):
-    """Після натискання на кнопку Оновити статус"""
-    token = call.data.split('_')[-1]
-    user_chat_id = call.data.split(':')[0]
-    payment = await payment_completed(token)
-    if payment:
-        await GroupChannelService.update_chat_sql(user_chat_id, subscription_time=604800 + time.time())
-        await call.message.edit_text(text=_('✅ Вітаю! Бота успішно активовано на 30 днів.'),
-                                     reply_markup=main_kb)
-    else:
-        await user_chat_menu(call)
-        return
 
 
 @router.chat_member()
@@ -232,7 +222,7 @@ async def user_joined_group(chat_member: types.ChatMemberUpdated):
 
 
 @router.my_chat_member()
-async def my_chat_member_handler(my_chat_member: types.ChatMemberUpdated):
+async def connect_bot_to_group(my_chat_member: types.ChatMemberUpdated, state: FSMContext):
     """
     Обробка подій приєднання бота до групи.
     Приєднання зараховується, якщо бот має права адміністратора.
@@ -250,7 +240,6 @@ async def my_chat_member_handler(my_chat_member: types.ChatMemberUpdated):
         ).format(title=chat_title),
         ChatMemberStatus.MEMBER: _(
             "{title} успішно підключено!"
-            # "Для того, щоб бот функціонував у групі {title}, потрібно надати йому права адміністратора."
         ).format(title=chat_title),
         ChatMemberStatus.RESTRICTED: _(
             "Бот не може функціонувати у групі {title}, оскільки він заблокований."
@@ -263,7 +252,7 @@ async def my_chat_member_handler(my_chat_member: types.ChatMemberUpdated):
         ).format(title=chat_title),
     }
 
-    if new_status == ChatMemberStatus.ADMINISTRATOR or new_status == ChatMemberStatus.MEMBER:
+    if new_status in (ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.MEMBER):
 
         chat = await bot.get_chat(chat_id=my_chat_member.chat.id)
         chat_link = f"https://t.me/{chat.username}"
@@ -278,9 +267,10 @@ async def my_chat_member_handler(my_chat_member: types.ChatMemberUpdated):
         )
 
         check_sub_msg = await bot.send_message(chat_id=user_id, text=_('Перевірка підписки...'))
-        await user_chat_menu(types.CallbackQuery(id='generated_callback_query', from_user=my_chat_member.from_user,
+        await state.update_data(connected_group=my_chat_member.chat.id)
+        await user_chat_menu(types.CallbackQuery(id='bot_connect', from_user=my_chat_member.from_user,
                                                  chat_instance=str(my_chat_member.chat.id),
-                                                 data=f'{my_chat_member.chat.id}', message=check_sub_msg))
+                                                 data=f'{my_chat_member.chat.id}', message=check_sub_msg), state=state)
     elif new_status in messages:
         await bot.send_message(chat_id=user_id, text=messages[new_status])
 
@@ -293,15 +283,15 @@ class SubscriptionGroupHandler:
     @staticmethod
     @router.callback_query(F.data.startswith("subscription_group"))
     async def scheduled_job_subscribe_is_ending(owner_id: str, type_subscription: GroupTypeSubscription):
-        """Повідомлення за добу до закінчення підписки."""
+        """Повідомлення про закінчення групової підписки власнику за добу."""
         message = {
             GroupTypeSubscription.ADVERTISEMENT: _(
                 'Ваша підписка на оголошення добігає кінця. Поповніть підписку.'),
             GroupTypeSubscription.AUCTION: _('Ваша підписка на аукціон добігає кінця. Поповніть підписку.'),
             GroupTypeSubscription.FREE_TRIAL: _('Ваш пробний період добігає кінця. Поповніть підписку.'),
-        }[type_subscription]
-
-        await bot.send_message(chat_id=owner_id, text=message)
+        }
+        text = message.get(type_subscription)
+        await bot.send_message(chat_id=owner_id, text=text)
 
     @staticmethod
     def create_task_subscribe_is_ending(owner_chat_id, group_chat_id: str, type_subscription: str,
