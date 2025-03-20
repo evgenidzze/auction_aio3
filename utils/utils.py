@@ -25,7 +25,7 @@ from database.services.user_service import UserService
 from utils.create_bot import bot, scheduler
 from keyboards.client_kb import decline_lot_btn, accept_lot_btn, back_to_main_btn, main_kb
 from utils.config import GALLERY_CHANNEL
-from utils.paypal import create_order, get_order_status, capture
+from utils.paypal import create_order, get_order_status
 from utils.create_bot import _
 
 # checkout_url = 'https://api-m.paypal.com/checkoutnow?token={token}' # prod
@@ -344,18 +344,6 @@ async def contact_payment_kb_generate(bidder_telegram_id, token, lot_id, owner_l
     return kb
 
 
-async def payment_completed(paypal_token) -> bool:
-    """
-    Підписує ордер та повертає його статус
-    """
-    if paypal_token:
-        await capture(order_id=paypal_token)
-        status = await get_order_status(paypal_token)
-        return True if status == 'COMPLETED' else False
-    else:
-        return False
-
-
 async def payment_link_generate(token):
     logging.info(f'CHECKOUT URL MAY BE TESTING')
     return checkout_url.format(token=token)
@@ -410,31 +398,10 @@ async def user_sub_time_remain(user_id, group_id, func_type: UserTypeSubscriptio
     return time_remain
 
 
-async def user_have_approved_adv_token(user_id, group_id) -> bool:
-    """
-    Підпис ордера при умові його наявності.
-    """
-    user_group = await UserGroupService.get_user_group(user_id, group_id)
-    token = user_group.user_adv_token
-    if token:
-        return await payment_completed(token)
-    else:
-        return False
-
-
-async def get_token_approval(chat_subscription, type_: GroupTypeSubscription) -> bool:
-    if type_ == GroupTypeSubscription.AUCTION:
-        token_approved = await payment_completed(chat_subscription.auction_token)
-    else:
-        token_approved = await payment_completed(chat_subscription.ads_token)
-    return token_approved
-
-
-async def payment_kb(token, activate_btn_text, callback_data, back_btn: InlineKeyboardButton = back_to_main_btn):
-    update_status_btn = InlineKeyboardButton(text=_('🔄 Оновити статус'), callback_data=callback_data)
+async def payment_kb(token, activate_btn_text, back_btn: InlineKeyboardButton = back_to_main_btn):
     payment_url = await payment_link_generate(token)
     pay_btn = InlineKeyboardButton(text=activate_btn_text, url=payment_url)
-    pay_kb = InlineKeyboardMarkup(inline_keyboard=[[pay_btn], [update_status_btn], [back_btn]])
+    pay_kb = InlineKeyboardMarkup(inline_keyboard=[[pay_btn], [back_btn]])
     return pay_kb
 
 
@@ -491,14 +458,15 @@ async def build_media_group(photos_id, videos_id, caption):
     return media_group
 
 
-async def get_token_or_create_new(token, user_chat_id, token_type: str):
+async def get_token_or_create_new(token, user_chat_id, token_type: str, payer_tg_id):
     if token:
         status = await get_order_status(token)
         if status in ('CREATED', 'APPROVED'):
             return token
-    new_token = await create_order(usd=1)
-    await GroupSubscriptionPlanService.update_group_subscription_sql(user_chat_id, **{token_type: new_token})
-    return new_token
+    else:
+        token = await create_order(usd=1, payer_tg_id=payer_tg_id)
+        await GroupSubscriptionPlanService.update_group_subscription_sql(user_chat_id, **{token_type: token})
+        return token
 
 
 async def generate_chats_kb(user_chats):
@@ -553,31 +521,26 @@ async def create_monetization_text_and_kb(subscription: GroupSubscriptionPlan, c
     return text, kb_builder.as_markup()
 
 
-async def check_group_subscriptions_db_and_paypal(group_id, chat_subscription):
+async def get_tokens_and_finish_dates(group_id, chat_subscription: GroupSubscriptionPlan):
     """
     Перевіряє чи є в групи підписка у БД.
-    Якщо немає - перевірка оплати підписки.
     """
-    tokens = {GroupTypeSubscription.AUCTION: None, GroupTypeSubscription.ADVERTISEMENT: None}
+    function_tokens = {GroupTypeSubscription.AUCTION: None, GroupTypeSubscription.ADVERTISEMENT: None}
     sub_dates = {}
     current_time = time.time()
-    function_attr_names = [(GroupTypeSubscription.AUCTION, 'auction_sub_time',),
-                           (GroupTypeSubscription.ADVERTISEMENT, 'ads_sub_time',)]
-    for sub_type, sub_time_attr in function_attr_names:
-        sub_time = getattr(chat_subscription, sub_time_attr)
+
+    for func_type in function_tokens.keys():
+        sub_time = getattr(chat_subscription, f"{func_type}_sub_time")
         if sub_time > current_time:  # чи є підписка у БД
-            sub_dates[sub_type] = f'активовано до {datetime.datetime.fromtimestamp(sub_time).strftime("%d.%m.%Y")}'
-        else:  # запит на перевірку оплати підписки
-            token_approved = await get_token_approval(chat_subscription, type_=sub_type)  # type: ignore
-            if token_approved:
-                sub_dates[sub_type] = f'активовано до {datetime.datetime.fromtimestamp(sub_time).strftime("%d.%m.%Y")}'
-                await GroupChannelService.update_chat_sql(group_id, **{sub_time_attr: 604800 + current_time})
-            else:
-                tokens[sub_type] = await get_token_or_create_new(getattr(chat_subscription, f'{sub_type}_token'),
-                                                                 group_id,
-                                                                 f'{sub_type}_token')
-                sub_dates[sub_type] = 'не активовано'
-    return sub_dates, tokens
+            sub_dates[func_type] = f'активовано до {datetime.datetime.fromtimestamp(sub_time).strftime("%d.%m.%Y")}'
+        else:
+            function_tokens[func_type] = await get_token_or_create_new(
+                token=getattr(chat_subscription, f'{func_type}_token'),
+                user_chat_id=group_id,
+                token_type=f'{func_type}_token',
+                payer_tg_id=chat_subscription.group.owner_telegram_id)
+            sub_dates[func_type] = 'не активовано'
+    return sub_dates, function_tokens
 
 
 async def add_user_group_handler(user_id, group_id):
