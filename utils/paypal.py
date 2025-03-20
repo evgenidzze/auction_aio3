@@ -13,36 +13,56 @@ api_domain = 'https://api-m.sandbox.paypal.com'
 # api_domain = 'https://api-m.paypal.com'
 
 
-async def create_order(usd, merchant_id=None):
+async def create_order(usd, payer_tg_id, merchant_id=None):
     """
     Створення замовлення в PayPal на певну суму
+    :param payer_tg_id:
     :param merchant_id: id мерчанта(партнера)
     :param usd: сума в доларах
     :return: id замовлення
     """
     url = f"{api_domain}/v2/checkout/orders"
-    headers = {
-        "Content-Type": "application/json",
-    }
+    headers = {"Content-Type": "application/json"}
+    total_amount = float(usd)
+    fee_amount = round(total_amount * 0.2, 2)
     data = {
         "intent": "CAPTURE",
         "purchase_units": [
             {
-                "amount": {
-                    "currency_code": "USD",
-                    f"value": f"{usd}.00"
-                },
+                # "amount": {
+                #     "currency_code": "USD",
+                #     "value": f"{total_amount:.2f}"},
                 "payee": {
                     "merchant_id": merchant_id
-                }
+                },
+                "purchase_units": [
+                    {
+                        "amount": {
+                            "currency_code": "USD",
+                            "value": total_amount,
+                        },
+                        'custom_id': payer_tg_id
+                    }
+                ]
+                # "payment_instruction": {
+                #     "platform_fees": [
+                #         {
+                #             "amount": {
+                #                 "currency_code": "USD",
+                #                 "value": f"{fee_amount:.2f}"
+                #             }
+                #         }
+                #     ]
+                # }
             }
         ],
         "application_context": {
             "brand_name": "Auction",
             "landing_page": "BILLING",
             "user_action": "PAY_NOW",
-            "return_url": "https://paypal.com"
-        }
+            "return_url": "https://paypal.com",
+            "shipping_preference": "NO_SHIPPING"
+        },
     }
     async with aiohttp.ClientSession() as session:
         async with session.post(url, headers=headers, json=data,
@@ -118,12 +138,6 @@ async def user_is_merchant_api(user_id):
             by_user_id_response = await by_user_id_response.json()
             links = by_user_id_response.get('links')
             if links:
-                return True
-                # status_by_merchant_id_api_route = links[0].get('href')
-                # async with session.get(api_domain + status_by_merchant_id_api_route,
-                #                        auth=BasicAuth(PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET)) as by_merchant_id_response:
-                #     by_merchant_id_response = await by_merchant_id_response.json()
-                #     for key, val in by_merchant_id_response.items():
-                #         print(key, val)
+                return by_user_id_response.get('merchant_id')
             else:
                 return False
