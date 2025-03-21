@@ -82,7 +82,6 @@ class Localization(I18nMiddleware):
         return locale
 
 
-# TODO: Накладіть цей декоратор на ваші функції, які вимагають підписки. Приклад використання: @subscription_group_required("auction", "ads")
 def subscription_group_required(*subscription_types: List[str]):
     """
     Декоратор для функцій, які вимагають підписку на групу. Перевіряє наявність підписки у групи, з якої було викликано

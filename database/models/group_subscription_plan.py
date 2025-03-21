@@ -5,7 +5,7 @@ from database.models.base import Base
 
 class GroupSubscriptionPlan(Base):
     """
-    Модель підписки на групу. В одної групи - одна підписка.
+    Модель підписки групи. В одної групи - одна підписка.
 
     Атрибути:
         group (ChannelGroup): Об'єкт групи.

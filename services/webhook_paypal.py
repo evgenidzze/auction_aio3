@@ -44,7 +44,6 @@ app = FastAPI(on_startup=check_webhook())
 EVENT_HANDLERS = {
     "MERCHANT.ONBOARDING.COMPLETED": handle_onboarding_completed,
     "CHECKOUT.ORDER.APPROVED": handle_payment_completed,
-    # "CHECKOUT.ORDER.APPROVED": handle_payment_completed,
 }
 
 

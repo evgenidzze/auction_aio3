@@ -13,10 +13,10 @@ async def main():
     set_logging()
 
     router = Router()
-    router.include_router(lot_handlers.router)
     router.include_router(admin.router)
-    router.include_router(adv_handlers.router)
     router.include_router(general_handlers.router)
+    router.include_router(lot_handlers.router)
+    router.include_router(adv_handlers.router)
 
     Localization(i18n=i18n).setup(router)
     bot.session.middleware(ChangeLanguageMiddleware())
