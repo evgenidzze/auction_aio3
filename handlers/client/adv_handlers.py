@@ -23,7 +23,7 @@ from handlers.client.general_handlers import FSMClient
 
 from utils.create_bot import scheduler, _, bot
 import keyboards.client_kb as client_kb
-from utils.paypal import get_order_status, create_order, user_is_merchant_api
+from utils.paypal import get_order_status, create_order, user_is_merchant_api, ClientProductCategory
 
 from handlers.middleware import require_username
 from utils.utils import create_user_lots_kb, IsMessageType, generate_chats_kb, \
@@ -294,6 +294,9 @@ async def decline_adv(call: types.CallbackQuery, **kwargs):
 
 @router.callback_query(FSMClient.adv_sub_seconds)
 async def create_adv_sub(call: types.CallbackQuery, state: FSMContext, **kwargs):
+    """
+    Приймає Unix time для клієнтської підписки на оголошення.
+    """
     await state.set_state(None)
     data = await state.get_data()
     adv_group_id = data.get('adv_group_id')
@@ -305,11 +308,11 @@ async def create_adv_sub(call: types.CallbackQuery, state: FSMContext, **kwargs)
             token = user_group.user_adv_token
         else:
             token = await create_order(usd=ADV_SUBSCRIPTION_PRICE, merchant_id=group_owner_merchant_id,
-                                       payer_tg_id=call.from_user.id)
+                                       payer_tg_id=call.from_user.id, category=ClientProductCategory.ADVERTISEMENT)
             await UserGroupService.update_user_group(call.from_user.id, group_id=adv_group_id, user_adv_token=token)
     else:
         token = await create_order(usd=ADV_SUBSCRIPTION_PRICE, merchant_id=group_owner_merchant_id,
-                                   payer_tg_id=call.from_user.id)
+                                   payer_tg_id=call.from_user.id, category=ClientProductCategory.ADVERTISEMENT)
         await UserGroupService.update_user_group(call.from_user.id, group_id=adv_group_id, user_adv_token=token)
 
     kb = await payment_kb(token, activate_btn_text=_('Оплатити 15$'))
