@@ -1,25 +1,31 @@
-import json
-import time
+
+from enum import Enum
+from typing import Union
 
 import aiohttp
 from aiohttp import BasicAuth
 
 from utils.config import PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET, PARTNER_ID, OWNER_PARTNER_ID, USERNAME_BOT
-from utils.create_bot import job_stores
 
 api_domain = 'https://api-m.sandbox.paypal.com'
 
 
 # api_domain = 'https://api-m.paypal.com'
 
+class ClientProductCategory(str, Enum):
+    AUCTION = 'CLIENT_AUCTION'
+    ADVERTISEMENT = 'CLIENT_ADVERTISEMENT'
 
-async def create_order(usd, payer_tg_id, merchant_id=None):
+
+class AdminProductCategory(str, Enum):
+    AUCTION = 'ADMIN_AUCTION'
+    ADVERTISEMENT = 'ADMIN_ADVERTISEMENT'
+
+
+async def create_order(usd, payer_tg_id, category: Union[ClientProductCategory, AdminProductCategory],
+                       merchant_id=None):
     """
     Створення замовлення в PayPal на певну суму
-    :param payer_tg_id:
-    :param merchant_id: id мерчанта(партнера)
-    :param usd: сума в доларах
-    :return: id замовлення
     """
     url = f"{api_domain}/v2/checkout/orders"
     headers = {"Content-Type": "application/json"}
@@ -29,32 +35,25 @@ async def create_order(usd, payer_tg_id, merchant_id=None):
         "intent": "CAPTURE",
         "purchase_units": [
             {
-                # "amount": {
-                #     "currency_code": "USD",
-                #     "value": f"{total_amount:.2f}"},
                 "payee": {
                     "merchant_id": merchant_id
                 },
-                "purchase_units": [
-                    {
-                        "amount": {
-                            "currency_code": "USD",
-                            "value": total_amount,
-                        },
-                        'custom_id': payer_tg_id
+                "amount": {
+                    "currency_code": "USD",
+                    "value": total_amount,
+                },
+                'custom_id': payer_tg_id,
+                'items': {
+                    'name': '',
+                    'quantity': '',
+                    'category': category,
+                    'unit_amount': {
+                        "currency_code": 'USD',
+                        'value': total_amount
                     }
-                ]
-                # "payment_instruction": {
-                #     "platform_fees": [
-                #         {
-                #             "amount": {
-                #                 "currency_code": "USD",
-                #                 "value": f"{fee_amount:.2f}"
-                #             }
-                #         }
-                #     ]
-                # }
+                }
             }
+
         ],
         "application_context": {
             "brand_name": "Auction",
@@ -130,4 +129,4 @@ async def user_is_merchant_api(user_id):
             if links:
                 return by_user_id_response.get('merchant_id')
             else:
-                return False
+                return None
