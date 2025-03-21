@@ -12,7 +12,7 @@ from database.services.base import engine
 from database.services.group_subscription_plan_service import GroupSubscriptionPlanService
 from utils.config import BOT_TOKEN, DEV_ID
 from database.models.group_subscription_plan import GroupSubscriptionPlan
-from keyboards.admin_kb import activate_ad_auction_kb
+from keyboards.admin_kb import group_payment_kb
 from aiogram import Bot
 from aiogram.utils.i18n import I18n
 from pathlib import Path
@@ -52,9 +52,9 @@ async def send_end_subscription_message(owner_id: str, group_id: str, group_titl
     # to owner
     chat_subscription = await GroupSubscriptionPlanService.get_subscription(group_id)
     sub_dates, tokens = await get_tokens_and_finish_dates(group_id, chat_subscription=chat_subscription)
-    owner_kb = await activate_ad_auction_kb(auction_token=tokens[GroupTypeSubscription.AUCTION],
-                                            ads_token=tokens[GroupTypeSubscription.ADVERTISEMENT], group_id=group_id,
-                                            free_trial=chat_subscription.free_trial)
+    owner_kb = await group_payment_kb(auction_token=tokens[GroupTypeSubscription.AUCTION],
+                                      ads_token=tokens[GroupTypeSubscription.ADVERTISEMENT], group_id=group_id,
+                                      free_trial=chat_subscription.free_trial)
     await bot.send_message(chat_id=owner_id, text=f"{owner_message} '{group_title}'",
                            reply_markup=owner_kb)
     # to groups
