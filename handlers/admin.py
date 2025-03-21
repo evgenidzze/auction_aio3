@@ -16,7 +16,7 @@ from utils.create_bot import job_stores, bot, _
 
 from keyboards.admin_kb import back_to_admin_btn, \
     unblock_user_btn, block_user_btn, \
-    activate_ad_auction_kb, admin_menu_kb, add_group_kb, back_to_admin_kb
+    group_payment_kb, admin_menu_kb, add_group_kb, back_to_admin_kb
 from keyboards.client_kb import main_kb
 from utils.paypal import create_partner_referral_url_and_token, user_is_merchant_api
 from utils.utils import \
@@ -192,7 +192,7 @@ async def user_chat_menu(call: types.CallbackQuery, state: FSMContext):
             f'Оголошення {sub_dates[GroupTypeSubscription.ADVERTISEMENT]}\n'
             f'Аукціон {sub_dates[GroupTypeSubscription.AUCTION]}'
         )
-        kb = await activate_ad_auction_kb(
+        kb = await group_payment_kb(
             auction_token=tokens[GroupTypeSubscription.AUCTION],
             ads_token=tokens[GroupTypeSubscription.ADVERTISEMENT],
             group_id=group_id,
@@ -293,9 +293,10 @@ class SubscriptionGroupHandler:
         await bot.send_message(chat_id=owner_id, text=text)
 
     @staticmethod
-    def create_task_subscribe_is_ending(owner_chat_id, group_chat_id: str, type_subscription: str,
-                                        duration_days: int):
-        """Створення задачі на попередження про закінчення підписки."""
+    async def create_task_subscribe_is_ending(owner_chat_id, group_chat_id: str,
+                                              type_subscription: GroupTypeSubscription,
+                                              duration_days: int):
+        """Створення задачі на попередження про закінчення групової підписки."""
         try:
             scheduler.remove_job(f'subscribe:{group_chat_id}')
         except JobLookupError:
@@ -316,8 +317,9 @@ class SubscriptionGroupHandler:
         # TODO: Логіка оплати. Логування і тд.
         pass
 
+    @staticmethod
     @router.callback_query(F.data.startswith("subscription_group"))
-    async def listening(self, callback_query: types.CallbackQuery):
+    async def listening(callback_query: types.CallbackQuery):
         """
         Обробка кнопок підписки на групу.
         startswith("subscription_group")
@@ -338,8 +340,9 @@ class SubscriptionGroupHandler:
                 )
                 return None
 
-            self.create_task_subscribe_is_ending(owner_chat_id, group_chat_id, GroupTypeSubscription.FREE_TRIAL,
-                                                 duration_days)
+            await SubscriptionGroupHandler.create_task_subscribe_is_ending(owner_chat_id, group_chat_id,
+                                                                           GroupTypeSubscription.FREE_TRIAL,
+                                                                           duration_days)
             await GroupSubscriptionPlanService.update_group_subscription_sql(group_chat_id,
                                                                              free_trial=current_time + duration_days * 86400)
             await callback_query.message.edit_text(
@@ -347,36 +350,39 @@ class SubscriptionGroupHandler:
                 reply_markup=admin_menu_kb.as_markup()
             )
 
-        elif type_subscribe == GroupTypeSubscription.AUCTION:
-            auction_update_duration = max(chat_subscription.auction_sub_time, current_time) + duration_days * 86400
-
-            if await self.payment_process(owner_chat_id, group_chat_id, GroupTypeSubscription.AUCTION,
-                                          duration_days):
-                return None
-            self.create_task_subscribe_is_ending(owner_chat_id, group_chat_id, GroupTypeSubscription.AUCTION,
-                                                 duration_days)
-            await GroupSubscriptionPlanService.update_group_subscription_sql(group_chat_id,
-                                                                             auction_sub_time=auction_update_duration,
-                                                                             auction_paid=True)
-            await callback_query.message.edit_text(
-                text=_("Підписка на аукціон активована на {days} днів.").format(days=duration_days),
-                reply_markup=admin_menu_kb.as_markup()
-            )
-
-        elif type_subscribe == GroupTypeSubscription.ADVERTISEMENT:
-            ads_update_duration = max(chat_subscription.ads_sub_time, current_time) + duration_days * 86400
-            if await self.payment_process(owner_chat_id, group_chat_id, GroupTypeSubscription.ADVERTISEMENT,
-                                          duration_days):
-                return None
-            self.create_task_subscribe_is_ending(owner_chat_id, group_chat_id, GroupTypeSubscription.ADVERTISEMENT,
-                                                 duration_days)
-            await GroupSubscriptionPlanService.update_group_subscription_sql(group_chat_id,
-                                                                             ads_sub_time=ads_update_duration,
-                                                                             ads_paid=True)
-            await callback_query.message.edit_text(
-                text=_("Підписка на оголошення активована на {days} днів.").format(days=duration_days),
-                reply_markup=admin_menu_kb.as_markup()
-            )
+        # elif type_subscribe == GroupTypeSubscription.AUCTION:
+        #     if await SubscriptionGroupHandler.payment_process(owner_chat_id, group_chat_id,
+        #                                                       GroupTypeSubscription.AUCTION, duration_days):
+        #         return None
+        #     await SubscriptionGroupHandler.create_task_subscribe_is_ending(owner_chat_id, group_chat_id,
+        #                                                                    GroupTypeSubscription.AUCTION,
+        #                                                                    duration_days)
+        #     auction_update_duration = max(chat_subscription.auction_sub_time, current_time) + duration_days * 86400
+        #
+        #     await GroupSubscriptionPlanService.update_group_subscription_sql(group_chat_id,
+        #                                                                      auction_sub_time=auction_update_duration,
+        #                                                                      auction_paid=True)
+        #     await callback_query.message.edit_text(
+        #         text=_("Підписка на аукціон активована на {days} днів.").format(days=duration_days),
+        #         reply_markup=admin_menu_kb.as_markup()
+        #     )
+        #
+        # elif type_subscribe == GroupTypeSubscription.ADVERTISEMENT:
+        #     if await SubscriptionGroupHandler.payment_process(owner_chat_id, group_chat_id,
+        #                                                       GroupTypeSubscription.ADVERTISEMENT,
+        #                                                       duration_days):
+        #         return None
+        #     await SubscriptionGroupHandler.create_task_subscribe_is_ending(owner_chat_id, group_chat_id,
+        #                                                                    GroupTypeSubscription.ADVERTISEMENT,
+        #                                                                    duration_days)
+        #     ads_update_duration = max(chat_subscription.ads_sub_time, current_time) + duration_days * 86400
+        #     await GroupSubscriptionPlanService.update_group_subscription_sql(group_chat_id,
+        #                                                                      ads_sub_time=ads_update_duration,
+        #                                                                      ads_paid=True)
+        #     await callback_query.message.edit_text(
+        #         text=_("Підписка на оголошення активована на {days} днів.").format(days=duration_days),
+        #         reply_markup=admin_menu_kb.as_markup()
+        #     )
 
 
 @router.callback_query(F.data == 'monetization')
