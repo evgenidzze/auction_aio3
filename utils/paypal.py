@@ -1,29 +1,19 @@
-
-from enum import Enum
 from typing import Union
 
 import aiohttp
 from aiohttp import BasicAuth
 
 from utils.config import PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET, PARTNER_ID, OWNER_PARTNER_ID, USERNAME_BOT
+from utils.core_types import ClientProductCategory, AdminProductCategory
 
 api_domain = 'https://api-m.sandbox.paypal.com'
 
 
 # api_domain = 'https://api-m.paypal.com'
 
-class ClientProductCategory(str, Enum):
-    AUCTION = 'CLIENT_AUCTION'
-    ADVERTISEMENT = 'CLIENT_ADVERTISEMENT'
-
-
-class AdminProductCategory(str, Enum):
-    AUCTION = 'ADMIN_AUCTION'
-    ADVERTISEMENT = 'ADMIN_ADVERTISEMENT'
-
 
 async def create_order(usd, payer_tg_id, category: Union[ClientProductCategory, AdminProductCategory],
-                       merchant_id=None):
+                       merchant_id=None, group_id=None):
     """
     Створення замовлення в PayPal на певну суму
     """
@@ -41,17 +31,14 @@ async def create_order(usd, payer_tg_id, category: Union[ClientProductCategory, 
                 "amount": {
                     "currency_code": "USD",
                     "value": total_amount,
-                },
-                'custom_id': payer_tg_id,
-                'items': {
-                    'name': '',
-                    'quantity': '',
-                    'category': category,
-                    'unit_amount': {
-                        "currency_code": 'USD',
-                        'value': total_amount
+                    "breakdown": {
+                        "item_total": {
+                            "currency_code": "USD",
+                            "value": total_amount
+                        },
                     }
-                }
+                },
+                'custom_id': f'{payer_tg_id}:{category}:{group_id}',
             }
 
         ],
