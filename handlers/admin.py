@@ -281,7 +281,6 @@ class SubscriptionGroupHandler:
         pass
 
     @staticmethod
-    @router.callback_query(F.data.startswith("subscription_group"))
     async def scheduled_job_subscribe_is_ending(owner_id: str, type_subscription: GroupTypeSubscription):
         """Повідомлення про закінчення групової підписки власнику за добу."""
         message = {
@@ -317,6 +316,7 @@ class SubscriptionGroupHandler:
         # TODO: Логіка оплати. Логування і тд.
         pass
 
+    @router.callback_query(F.data.startswith("subscription_group"))
     async def listening(self, callback_query: types.CallbackQuery):
         """
         Обробка кнопок підписки на групу.
