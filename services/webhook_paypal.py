@@ -1,15 +1,51 @@
 import logging
 
-import aiohttp
-from aiohttp import BasicAuth
+import requests
 from fastapi import FastAPI, Request
+from requests.auth import HTTPBasicAuth
 
-from database.services.user_service import UserService
-from keyboards.admin_kb import admin_menu_kb
+from services.paypal_event_handlers import handle_onboarding_completed, handle_payment_completed
 from utils.config import PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET
-from utils.create_bot import bot
+from utils.paypal import api_domain
 
-app = FastAPI()
+
+def create_webhook(url):
+    headers = {
+        "Content-Type": "application/json",
+    }
+    data = {
+        "url": f"{url}/webhook",
+        "event_types": [
+            {
+                'name': '*'
+            }
+        ]
+    }
+    res = requests.post(f"{api_domain}/v1/notifications/webhooks",
+                        auth=HTTPBasicAuth(PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET), headers=headers, json=data)
+    res_json = res.json()
+    print(res_json)
+
+
+def check_webhook():
+    # create_webhook('https://3146-62-80-185-106.ngrok-free.app')
+    headers = {
+        "Content-Type": "application/json",
+    }
+    res = requests.get(f"{api_domain}/v1/notifications/webhooks",
+                       auth=HTTPBasicAuth(PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET), headers=headers)
+    res_json = res.json()
+    for w in res_json.get('webhooks'):
+        logging.info(w.get('url'))
+
+
+app = FastAPI(on_startup=check_webhook())
+
+EVENT_HANDLERS = {
+    "MERCHANT.ONBOARDING.COMPLETED": handle_onboarding_completed,
+    "CHECKOUT.ORDER.APPROVED": handle_payment_completed,
+    # "CHECKOUT.ORDER.APPROVED": handle_payment_completed,
+}
 
 
 @app.post("/webhook")
@@ -18,27 +54,8 @@ async def paypal_webhook(request: Request):
     logging.info(payload)
     event_type = payload.get("event_type")
     resource = payload.get("resource", {})
-    if event_type == "MERCHANT.ONBOARDING.COMPLETED":
-        merchant_id = resource.get("merchant_id")
-        email = resource.get("email")
-        user_id = await get_tracking_id_paypal(resource)
-        await UserService.update_user_sql(telegram_id=user_id, merchant_id=merchant_id)
-        try:
-            await bot.send_message(chat_id=user_id, text="🤝 Вітаю ваш PayPal під'єднано до партнерської програми бота!", reply_markup=admin_menu_kb.as_markup())
-        except Exception as err:
-            logging.info(err)
-        return {"status": "processed"}
-    return {"status": "ignored"}
-
-
-async def get_tracking_id_paypal(resource):
-    links = resource.get('links')
-    href = links[0].get('href')
-    async with aiohttp.ClientSession() as session:
-        try:
-            async with session.get(href, auth=BasicAuth(PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET)) as response:
-                data = await response.json()
-                tracking_id = data.get('tracking_id')
-                return tracking_id
-        except Exception as err:
-            logging.info(err)
+    handler = EVENT_HANDLERS.get(event_type)
+    if handler:
+        await handler(resource)
+    else:
+        return {"status": f"Event `{event_type}` ignored"}
