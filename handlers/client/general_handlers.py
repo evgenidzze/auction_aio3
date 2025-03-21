@@ -3,7 +3,7 @@ import locale
 import logging
 
 from aiogram import Router, types, F
-from aiogram.filters import CommandStart, Command, CommandObject
+from aiogram.filters import CommandStart, Command, CommandObject, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -60,8 +60,8 @@ class FSMClient(StatesGroup):
     adv_group_id = State()
 
 
-@router.message(CommandStart(), IsPrivateChatFilter())
-@router.message(CommandStart(deep_link=True), IsPrivateChatFilter())
+@router.message(CommandStart(), IsPrivateChatFilter(), StateFilter("*"))
+@router.message(CommandStart(deep_link=True), IsPrivateChatFilter(), StateFilter("*"))
 async def start(message: types.Message, state: FSMContext, command: CommandObject, **kwargs):
     """/start"""
     await state.clear()
@@ -80,9 +80,9 @@ async def start(message: types.Message, state: FSMContext, command: CommandObjec
                                         reply_markup=client_kb.language_kb)
 
 
+@router.message(Command('main_menu'), IsPrivateChatFilter(), StateFilter("*"))
 @router.callback_query(FSMClient.language)
 @router.callback_query(F.data == 'main_menu')
-@router.message(Command('main_menu'), IsPrivateChatFilter())
 async def main_menu(call, state: FSMContext, **kwargs):
     """/main_menu"""
     data = await state.get_data()
