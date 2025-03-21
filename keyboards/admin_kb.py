@@ -23,7 +23,10 @@ admin_menu_kb.row(my_channels_groups_btn, add_group_kb).row(monetization, black_
 back_to_admin_kb = InlineKeyboardMarkup(inline_keyboard=[[back_to_admin_btn]])
 
 
-async def activate_ad_auction_kb(auction_token, ads_token, group_id, free_trial):
+async def group_payment_kb(auction_token, ads_token, group_id, free_trial):
+    """
+    Генерує кнопки для оплати групової підписки
+    """
     builder = InlineKeyboardBuilder()
     if auction_token:
         auction_payment_url = await payment_link_generate(auction_token)
@@ -35,6 +38,6 @@ async def activate_ad_auction_kb(auction_token, ads_token, group_id, free_trial)
         builder.button(text='🔑 Пробний період (14 днів)',
                        callback_data=f'subscription_group:{GroupTypeSubscription.FREE_TRIAL}:14:{group_id}')
     builder.add(back_my_channels_groups)
-    builder.adjust(2)
-    return builder.as_markup()
+    builder.adjust(1)
 
+    return builder.as_markup()
