@@ -22,6 +22,7 @@ from database.services.group_subscription_plan_service import GroupSubscriptionP
 from database.services.lot_service import LotService
 from database.services.user_group_service import UserGroupService
 from database.services.user_service import UserService
+from utils.core_types import UserTypeSubscription, GroupTypeSubscription, AdminProductCategory
 from utils.create_bot import bot, scheduler
 from keyboards.client_kb import decline_lot_btn, accept_lot_btn, back_to_main_btn, main_kb
 from utils.config import GALLERY_CHANNEL
@@ -30,25 +31,6 @@ from utils.create_bot import _
 
 # checkout_url = 'https://api-m.paypal.com/checkoutnow?token={token}' # prod
 checkout_url = 'https://www.sandbox.paypal.com/checkoutnow?token={token}'  # test
-
-
-class UserTypeSubscription(str, Enum):
-    """
-    This object represents a type of User subscription
-    """
-
-    ADVERTISEMENT = 'ads'
-    AUCTION = 'auction'
-
-
-class GroupTypeSubscription(str, Enum):
-    """
-    This object represents a type of Group subscription
-    """
-
-    ADVERTISEMENT = 'ads'
-    AUCTION = 'auction'
-    FREE_TRIAL = 'free_trial'
 
 
 class IsPrivateChatFilter(BaseFilter):
@@ -458,15 +440,11 @@ async def build_media_group(photos_id, videos_id, caption):
     return media_group
 
 
-async def get_token_or_create_new(token, user_chat_id, token_type: str, payer_tg_id):
-    if token:
-        status = await get_order_status(token)
-        if status in ('CREATED', 'APPROVED'):
-            return token
-    else:
-        token = await create_order(usd=1, payer_tg_id=payer_tg_id)
-        await GroupSubscriptionPlanService.update_group_subscription_sql(user_chat_id, **{token_type: token})
-        return token
+async def token_is_active(token):
+    status = await get_order_status(token)
+    if status in ('CREATED', 'APPROVED'):
+        return True
+    return False
 
 
 async def generate_chats_kb(user_chats):
@@ -524,23 +502,29 @@ async def create_monetization_text_and_kb(subscription: GroupSubscriptionPlan, c
 async def get_tokens_and_finish_dates(group_id, chat_subscription: GroupSubscriptionPlan):
     """
     Перевіряє чи є в групи підписка у БД.
+    Якщо не активна створює order token.
     """
-    function_tokens = {GroupTypeSubscription.AUCTION: None, GroupTypeSubscription.ADVERTISEMENT: None}
-    sub_dates = {}
+    subscription_dates = {}
     current_time = time.time()
+    function_tokens = {}
 
-    for func_type in function_tokens.keys():
-        sub_time = getattr(chat_subscription, f"{func_type}_sub_time")
-        if sub_time > current_time:  # чи є підписка у БД
-            sub_dates[func_type] = f'активовано до {datetime.datetime.fromtimestamp(sub_time).strftime("%d.%m.%Y")}'
+    for func_type in [GroupTypeSubscription.AUCTION, GroupTypeSubscription.ADVERTISEMENT]:
+        subscription_time = getattr(chat_subscription, f"{func_type}_sub_time")
+        if subscription_time > current_time:  # чи є підписка у БД
+            subscription_dates[
+                func_type] = f'активовано до {datetime.datetime.fromtimestamp(subscription_time).strftime("%d.%m.%Y")}'
         else:
-            function_tokens[func_type] = await get_token_or_create_new(
-                token=getattr(chat_subscription, f'{func_type}_token'),
-                user_chat_id=group_id,
-                token_type=f'{func_type}_token',
-                payer_tg_id=chat_subscription.group.owner_telegram_id)
-            sub_dates[func_type] = 'не активовано'
-    return sub_dates, function_tokens
+            token = getattr(chat_subscription, f'{func_type}_token')
+            payer_tg_id = chat_subscription.group.owner_telegram_id
+            if not token or not await token_is_active(token):
+                order_category = await AdminProductCategory.get_by_func_type(func_type=func_type)
+                new_token = await create_order(usd=1, payer_tg_id=payer_tg_id, category=order_category,
+                                               group_id=group_id)
+                await GroupSubscriptionPlanService.update_group_subscription_sql(chat_id=group_id,
+                                                                                 **{f'{func_type}_token': new_token})
+                function_tokens[func_type] = new_token
+            subscription_dates[func_type] = 'не активовано'
+    return subscription_dates, function_tokens
 
 
 async def add_user_group_handler(user_id, group_id):

@@ -29,7 +29,7 @@ from handlers.middleware import require_username
 from utils.utils import create_user_lots_kb, IsMessageType, generate_chats_kb, \
     gather_media_from_messages, is_media_count_allowed, send_post_fsm, user_sub_time_remain, \
     send_advert, adv_ending, repost_adv, payment_kb, \
-     UserTypeSubscription
+    UserTypeSubscription, token_is_active
 
 router = Router()
 
@@ -302,15 +302,8 @@ async def create_adv_sub(call: types.CallbackQuery, state: FSMContext, **kwargs)
     adv_group_id = data.get('adv_group_id')
     user_group = await UserGroupService.get_user_group(call.from_user.id, adv_group_id)
     group_owner_merchant_id = await user_is_merchant_api(user_group.group.owner_telegram_id)
-    if user_group.user_adv_token:
-        status = await get_order_status(user_group.user_adv_token)
-        if status in ('CREATED', 'APPROVED'):
-            token = user_group.user_adv_token
-        else:
-            token = await create_order(usd=ADV_SUBSCRIPTION_PRICE, merchant_id=group_owner_merchant_id,
-                                       payer_tg_id=call.from_user.id, category=ClientProductCategory.ADVERTISEMENT)
-            await UserGroupService.update_user_group(call.from_user.id, group_id=adv_group_id, user_adv_token=token)
-    else:
+    token = user_group.user_adv_token
+    if not token or not await token_is_active(token):
         token = await create_order(usd=ADV_SUBSCRIPTION_PRICE, merchant_id=group_owner_merchant_id,
                                    payer_tg_id=call.from_user.id, category=ClientProductCategory.ADVERTISEMENT)
         await UserGroupService.update_user_group(call.from_user.id, group_id=adv_group_id, user_adv_token=token)
