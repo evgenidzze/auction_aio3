@@ -1,7 +1,7 @@
 from enum import Enum
 
 
-class UserTypeSubscription(str, Enum):
+class UserTypeSubscription:
     """
     This object represents a type of User subscription
     """
@@ -10,7 +10,7 @@ class UserTypeSubscription(str, Enum):
     AUCTION = 'auction'
 
 
-class GroupTypeSubscription(str, Enum):
+class GroupTypeSubscription:
     """
     This object represents a type of Group subscription
     """
@@ -30,12 +30,12 @@ class GroupTypeSubscription(str, Enum):
         return data.get(category)
 
 
-class ClientProductCategory(str, Enum):
+class ClientProductCategory:
     AUCTION = 'CLIENT_AUCTION'
     ADVERTISEMENT = 'CLIENT_ADVERTISEMENT'
 
 
-class AdminProductCategory(str, Enum):
+class AdminProductCategory:
     AUCTION = 'ADMIN_AUCTION'
     ADVERTISEMENT = 'ADMIN_ADVERTISEMENT'
 
