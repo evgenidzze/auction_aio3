@@ -6,3 +6,6 @@ dump.rdb
 venv
 .env
 .local.env
+partners_api_local_test.py
+.env
+.local.env
