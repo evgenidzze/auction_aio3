@@ -2,7 +2,7 @@ import datetime
 import time
 from aiogram import types, Router, F
 from aiogram.enums import ChatMemberStatus, ChatType
-from aiogram.filters import Command
+from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -35,7 +35,7 @@ class FSMAdmin(StatesGroup):
     user_id = State()
 
 
-@router.message(Command('admin'))
+@router.message(Command('admin'), StateFilter("*"))
 @router.callback_query(F.data == 'admin')
 async def admin(message, state):
     await state.clear()
@@ -176,6 +176,7 @@ async def my_channels_groups(call: types.CallbackQuery, state: FSMContext):
 @router.callback_query(FSMAdmin.group_id)
 async def user_chat_menu(call: types.CallbackQuery, state: FSMContext):
     """Після натискання на кнопку Функціонал груп та вибору групи"""
+    await state.set_state(None)
     await call.message.edit_text(text=_('Перевірка підписки...'))
     group_id = call.data.split(':')[0]
     chat_subscription = await GroupSubscriptionPlanService.get_subscription(group_id)
@@ -193,8 +194,8 @@ async def user_chat_menu(call: types.CallbackQuery, state: FSMContext):
             f'Аукціон {sub_dates[GroupTypeSubscription.AUCTION]}'
         )
         kb = await group_payment_kb(
-            auction_token=tokens[GroupTypeSubscription.AUCTION],
-            ads_token=tokens[GroupTypeSubscription.ADVERTISEMENT],
+            auction_token=tokens.get(GroupTypeSubscription.AUCTION),
+            ads_token=tokens.get(GroupTypeSubscription.ADVERTISEMENT),
             group_id=group_id,
             free_trial=chat_subscription.free_trial
         )
@@ -255,9 +256,9 @@ async def connect_bot_to_group(my_chat_member: types.ChatMemberUpdated, state: F
     if new_status in (ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.MEMBER):
 
         chat = await bot.get_chat(chat_id=my_chat_member.chat.id)
-        chat_link = f"https://t.me/{chat.username}"
-        if not chat.username:
-            chat_link = await chat.export_invite_link()
+        chat_link = f"https://t.me/{chat.username}" if chat.username else None
+        # if not chat.username:
+        #     chat_link = await chat.export_invite_link()
         await GroupChannelService.create_group(
             owner_telegram_id=user_id,
             chat_id=my_chat_member.chat.id,
