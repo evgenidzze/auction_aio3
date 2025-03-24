@@ -7,6 +7,7 @@ from aiogram.filters import CommandStart, Command, CommandObject, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 import keyboards.client_kb as client_kb
 from database.services.advertisement_service import AdvertisementService
@@ -113,12 +114,14 @@ async def groups_and_channels(call: types.CallbackQuery, **kwargs):
 @router.callback_query(F.data == 'other_channels_groups')
 async def other_channels_groups(call: types.CallbackQuery, **kwargs):
     other_chats = await GroupChannelService.get_all_groups()
-    kb = InlineKeyboardMarkup(
-        inline_keyboard=[[InlineKeyboardButton(text=chat.chat_name, url=chat.chat_link)] for chat in
-                         other_chats])
-    kb.inline_keyboard.extend([[client_kb.back_group_channels_btn]])
+    kb = InlineKeyboardBuilder()
+    for chat in other_chats:
+        kb.button(text=chat.chat_name, url=chat.chat_link)
+
+    kb.add(client_kb.back_group_channels_btn)
+    kb.adjust(1)
     await call.message.edit_text(text=_('Список груп у яких працює бот:'),
-                                 reply_markup=kb)
+                                 reply_markup=kb.as_markup())
 
 
 @router.callback_query(F.data == 'my_channels_groups')
