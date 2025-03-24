@@ -453,6 +453,7 @@ async def generate_chats_kb(user_chats):
         if isinstance(chat, UserGroup):
             chat = chat.group
         kb.button(text=chat.chat_name, callback_data=chat.chat_id)
+    kb.adjust(1)
     return kb.as_markup()
 
 
@@ -518,11 +519,11 @@ async def get_tokens_and_finish_dates(group_id, chat_subscription: GroupSubscrip
             payer_tg_id = chat_subscription.group.owner_telegram_id
             if not token or not await token_is_active(token):
                 order_category = await AdminProductCategory.get_by_func_type(func_type=func_type)
-                new_token = await create_order(usd=1, payer_tg_id=payer_tg_id, category=order_category,
+                token = await create_order(usd=1, payer_tg_id=payer_tg_id, category=order_category,
                                                group_id=group_id)
                 await GroupSubscriptionPlanService.update_group_subscription_sql(chat_id=group_id,
-                                                                                 **{f'{func_type}_token': new_token})
-                function_tokens[func_type] = new_token
+                                                                                 **{f'{func_type}_token': token})
+            function_tokens[func_type] = token
             subscription_dates[func_type] = 'не активовано'
     return subscription_dates, function_tokens
 
