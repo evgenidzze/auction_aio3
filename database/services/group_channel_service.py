@@ -42,7 +42,7 @@ class GroupChannelService:
         :return: Список об'єктів ChannelGroup.
         """
         async with async_session() as session:
-            stmt = select(ChannelGroup).where(ChannelGroup.chat_link != None)
+            stmt = select(ChannelGroup).where(ChannelGroup.chat_link.is_not(None))
             res = await session.execute(stmt)
             chats = res.scalars().all()
             return chats
