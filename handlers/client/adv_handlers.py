@@ -54,9 +54,14 @@ async def my_ads(call: types.CallbackQuery, state: FSMContext, **kwargs):
 async def group_for_adv(call: types.CallbackQuery, state: FSMContext, **kwargs):
     chats = await UserGroupService.get_user_groups(call.from_user.id)
     kb = await generate_chats_kb(chats)
+    if chats:
+        text = _('Оберіть групу в якій хочете виставити оголошення:')
+    else:
+        text = _('🤷‍♂️ У вас немає збережених груп, оберіть групу з загального списку:')
+        kb.inline_keyboard.extend([[client_kb.other_channels_groups]])
     kb.inline_keyboard.extend([[client_kb.back_to_ad_menu_btn]])
     await state.set_state(FSMClient.adv_group_id)
-    await call.message.edit_text(text='Оберіть групу в якій хочете виставити оголошення:', reply_markup=kb)
+    await call.message.edit_text(text=text, reply_markup=kb)
 
 
 @router.callback_query(FSMClient.adv_group_id)
