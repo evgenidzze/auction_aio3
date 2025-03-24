@@ -4,6 +4,7 @@ from typing import Union
 
 from aiogram import types, F, Router
 from aiogram.enums import ContentType
+from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.types import InlineKeyboardMarkup
 
@@ -27,7 +28,7 @@ from utils.utils import create_user_lots_kb, IsMessageType, generate_chats_kb, \
 router = Router()
 
 
-@router.callback_query(F.data == 'auction')
+@router.callback_query(F.data == 'auction', StateFilter("*"))
 async def auction_menu(call: types.CallbackQuery, state: FSMContext, **kwargs):
     await call.message.edit_text(text=_('Ви обрали 🏷 Аукціон'), reply_markup=client_kb.auction_kb)
     await state.clear()
@@ -48,9 +49,15 @@ async def my_auctions(call: types.CallbackQuery, state: FSMContext, **kwargs):
 async def lot_group(call: types.CallbackQuery, state: FSMContext, **kwargs):
     chats = await UserGroupService.get_user_groups(call.from_user.id)  # замінити на групи користувача
     kb = await generate_chats_kb(chats)
+    if chats:
+        await state.set_state(FSMClient.lot_group_id)
+        text = _('У якій групі бажаєте опублікувати лот?')
+    else:
+        text = _('🤷‍♂️ У вас немає збережених груп, оберіть групу з загального списку:')
+        kb.inline_keyboard.extend([[client_kb.other_channels_groups]])
     kb.inline_keyboard.extend([[client_kb.reset_to_auction_menu_btn]])
-    await state.set_state(FSMClient.lot_group_id)
-    await call.message.edit_text(text=_('У якій групі бажаєте опублікувати лот?'), reply_markup=kb)
+
+    await call.message.edit_text(text=text, reply_markup=kb)
 
 
 @router.callback_query(FSMClient.lot_group_id)
