@@ -8,7 +8,10 @@ from typing import List
 from aiogram import types, F, Router
 from aiogram.enums import ContentType
 from aiogram.fsm.context import FSMContext
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import InlineKeyboardButton
+from aiogram.utils.deep_linking import create_start_link
+from aiogram.utils.keyboard import InlineKeyboardBuilder
+
 import database.models.advertisement
 import database.models.lot
 from database.services.advertisement_service import AdvertisementService
@@ -18,18 +21,15 @@ from database.services.group_subscription_plan_service import GroupSubscriptionP
 from database.services.user_group_service import UserGroupService
 from database.services.user_service import UserService
 from utils.aiogram_media_group import media_group_handler
-from utils.config import ADV_SUBSCRIPTION_PRICE
-from handlers.client.general_handlers import FSMClient
+from handlers.client.general_handlers import FSMClient, my_group_settings
 
 from utils.create_bot import scheduler, _, bot
 import keyboards.client_kb as client_kb
-from utils.paypal import get_order_status, create_order, user_is_merchant_api, ClientProductCategory
-
 from handlers.middleware import require_username
 from utils.utils import create_user_lots_kb, IsMessageType, generate_chats_kb, \
     gather_media_from_messages, is_media_count_allowed, send_post_fsm, user_sub_time_remain, \
-    send_advert, adv_ending, repost_adv, payment_kb, \
-    UserTypeSubscription, token_is_active
+    send_advert, adv_ending, repost_adv, \
+    UserTypeSubscription
 
 router = Router()
 
@@ -79,20 +79,14 @@ async def ask_description_ad(call: types.CallbackQuery, state: FSMContext, **kwa
     user_sub_time = await user_sub_time_remain(call.from_user.id,
                                                group_id=call.data,
                                                func_type=UserTypeSubscription.ADVERTISEMENT)
-    group_sub_time = group_subscription.ads_sub_time - time.time()
-    group_free_trial = group_subscription.free_trial - time.time()
 
-    if group_subscription.ads_paid and (group_sub_time <= 0 and group_free_trial <= 0):  # в групи немає підписки
-        await call.message.edit_text(text=_('В групі не активована функція оголошень'),
-                                     reply_markup=client_kb.back_to_ad_menu_kb)
-    elif user_sub_time > 0 or not group_subscription.ads_paid:  # в юзера є підписка або оголошення безкоштовні
+    if user_sub_time > 0 or not group_subscription.ads_paid:  # в юзера є підписка або оголошення безкоштовні
         await call.message.edit_text(text=_('📝 Напишіть опис для оголошення:'),
                                      reply_markup=client_kb.reset_to_ad_menu_kb)
         await state.set_state(FSMClient.description_ad)
     else:
-        await call.message.edit_text(text=_('ℹ️ Щоб виставити оголошення, потрібно оформити підписку.'),
-                                     reply_markup=client_kb.subscribe_adv_kb)
-        await state.set_state(FSMClient.adv_sub_seconds)
+        await my_group_settings(call, state)
+        return
 
 
 @router.message(FSMClient.description_ad, IsMessageType(message_type=[ContentType.TEXT]))
@@ -126,7 +120,7 @@ async def save_media_ad(messages: List[types.Message], state: FSMContext, **kwar
     state_name = await state.get_state()
     if isinstance(messages[0], types.Message) and 'media' in state_name:
         videos_id, photos_id = await gather_media_from_messages(messages=messages, state=state)
-        if await is_media_count_allowed(photos_id, videos_id, messages, client_kb.reset_to_auction_menu_kb):
+        if await is_media_count_allowed(photos_id, videos_id, messages, client_kb.reset_to_ad_menu_kb):
             await state.update_data(videos_id=videos_id)
             await state.update_data(photos_id=photos_id)
             await state.set_state(FSMClient.repost_count_answer)
@@ -297,27 +291,6 @@ async def decline_adv(call: types.CallbackQuery, **kwargs):
         await call.answer(text=_('Оголошення вже відхилено.'))
 
 
-@router.callback_query(FSMClient.adv_sub_seconds)
-async def create_adv_sub(call: types.CallbackQuery, state: FSMContext, **kwargs):
-    """
-    Приймає Unix time для клієнтської підписки на оголошення.
-    """
-    await state.set_state(None)
-    data = await state.get_data()
-    adv_group_id = data.get('adv_group_id')
-    user_group = await UserGroupService.get_user_group(call.from_user.id, adv_group_id)
-    group_owner_merchant_id = await user_is_merchant_api(user_group.group.owner_telegram_id)
-    token = user_group.user_adv_token
-    if not token or not await token_is_active(token):
-        token = await create_order(usd=ADV_SUBSCRIPTION_PRICE, merchant_id=group_owner_merchant_id,
-                                   payer_tg_id=call.from_user.id, category=ClientProductCategory.ADVERTISEMENT)
-        await UserGroupService.update_user_group(call.from_user.id, group_id=adv_group_id, user_adv_token=token)
-
-    kb = await payment_kb(token, activate_btn_text=_('Оплатити 15$'))
-    await call.message.edit_text(text=_('💲 Вартість підписки 15$ на 30 днів.\n\n'
-                                        'Оплатіть підписку натиснувши на кнопку нижче 👇'), reply_markup=kb)
-
-
 @router.callback_query(F.data.startswith('edit_ad_text'))
 async def edit_ad_text(call: types.CallbackQuery, state: FSMContext, **kwargs):
     obj_id = call.data.split(':')[-2]
@@ -328,11 +301,12 @@ async def edit_ad_text(call: types.CallbackQuery, state: FSMContext, **kwargs):
         if ad.new_text:
             user = await UserService.get_user(ad.owner_telegram_id)
             user_tg = await bot.get_chat(user.telegram_id)
-            kb = InlineKeyboardMarkup(inline_keyboard=[])
-            kb.inline_keyboard.extend([[InlineKeyboardButton(text='⏳', callback_data=f'time_left_adv_{obj_id}')]])
-            kb.inline_keyboard.extend(
-                [[InlineKeyboardButton(text=_('💬 Задати питання автору', locale=user.language),
-                                       url=f'https://t.me/{user_tg.username}')]])
+            kb = InlineKeyboardBuilder()
+            kb.button(text='⏳', callback_data=f'time_left_adv_{obj_id}')
+            kb.button(text=_('💬 Задати питання автору', locale=user.language),
+                                       url=f'https://t.me/{user_tg.username}')
+            invite_link = await create_start_link(bot, ad.group.chat_id)
+            kb.row(InlineKeyboardButton(text='📝 Створити свою публікацію', url=invite_link))
             await AdvertisementService.update_adv_sql(obj_id, description=ad.new_text, new_text=None)
             caption = _("<b>{description}</b>\n\n"
                         "🏙 <b>Місто:</b> {city}\n", locale=user.language).format(description=ad.new_text,
