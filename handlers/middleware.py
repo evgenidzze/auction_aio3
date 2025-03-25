@@ -1,17 +1,18 @@
 import logging
+from abc import ABC
 from typing import Dict, Any
 from aiogram import types, Bot
 from aiogram.client.session.middlewares.base import BaseRequestMiddleware, NextRequestMiddlewareType
 from aiogram.enums import ChatType
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
-from aiogram.filters import BaseFilter
+from aiogram.filters import BaseFilter, Filter
 from aiogram.methods.base import TelegramType, Response, TelegramMethod
 from aiogram.types import InlineKeyboardMarkup, TelegramObject, CallbackQuery
 from aiogram.utils.i18n import gettext as _, I18nMiddleware
 from database.services.group_subscription_plan_service import GroupSubscriptionPlanService
 from database.services.user_group_service import UserGroupService
 from database.services.user_service import UserService
-from utils.create_bot import i18n
+from utils.create_bot import i18n, bot
 from utils.utils import translate_kb, GroupTypeSubscription
 from keyboards.client_kb import main_kb
 
@@ -158,3 +159,16 @@ def require_username(func):
         return await func(*args, **kwargs)
 
     return wrapper
+
+
+class UserNotBlocked(Filter):
+    """
+    Приймає types.CallbackQuery.
+    У call.data має бути group_id
+    """
+    async def __call__(self, call: types.CallbackQuery):
+        await call.answer()
+        user_group = await UserGroupService.get_user_group(call.from_user.id, call.data)
+        if user_group.is_blocked:
+            await bot.send_message(chat_id=call.from_user.id, text=_('⚠️ У цій групі вам було обмежено доступ до функцій.'), reply_markup=main_kb)
+        return not user_group.is_blocked
