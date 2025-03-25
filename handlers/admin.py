@@ -276,80 +276,35 @@ async def connect_bot_to_group(my_chat_member: types.ChatMemberUpdated, state: F
         await bot.send_message(chat_id=user_id, text=messages[new_status])
 
 
-class SubscriptionGroupHandler:
+@router.callback_query(F.data.startswith("free_trial"))
+async def free_trial(callback_query: types.CallbackQuery):
+    """
+    Обробка кнопок підписки на групу.
+    startswith("free_trial")
+    """
+    owner_chat_id = callback_query.from_user.id
+    group_chat_id = callback_query.data.split(':')[-1]
+    duration_days = 14
 
-    def __init__(self):
-        pass
+    chat_subscription = await GroupSubscriptionPlanService.get_subscription(group_chat_id)
 
-    @staticmethod
-    async def scheduled_job_subscribe_is_ending(owner_id: str, type_subscription: GroupTypeSubscription):
-        """Повідомлення про закінчення групової підписки власнику за добу."""
-        message = {
-            GroupTypeSubscription.ADVERTISEMENT: _(
-                'Ваша підписка на оголошення добігає кінця. Поповніть підписку.'),
-            GroupTypeSubscription.AUCTION: _('Ваша підписка на аукціон добігає кінця. Поповніть підписку.'),
-            GroupTypeSubscription.FREE_TRIAL: _('Ваш пробний період добігає кінця. Поповніть підписку.'),
-        }
-        text = message.get(type_subscription)
-        await bot.send_message(chat_id=owner_id, text=text)
-
-    @staticmethod
-    async def create_task_subscribe_is_ending(owner_chat_id, group_chat_id: str,
-                                              type_subscription: GroupTypeSubscription,
-                                              duration_days: int):
-        """Створення задачі на попередження про закінчення групової підписки."""
-        try:
-            scheduler.remove_job(f'subscribe:{group_chat_id}')
-        except JobLookupError:
-            pass
-
-        current_time = time.time()
-        scheduler.add_job(
-            SubscriptionGroupHandler.scheduled_job_subscribe_is_ending,
-            'date',
-            run_date=datetime.datetime.fromtimestamp(current_time + duration_days * 86400 - 86400),
-            args=[owner_chat_id, type_subscription],
-            id=f'subscribe:{group_chat_id}'
+    if chat_subscription.free_trial > 0:
+        await callback_query.message.edit_text(
+            text=_("Пробний період вже було використано."),
+            reply_markup=admin_menu_kb.as_markup()
         )
+        return None
 
-    @staticmethod
-    async def payment_process(owner_chat_id, group_chat_id: str, type_subscription: str, duration_days: int):
-        """Створення платіжного процесу."""
-        # TODO: Логіка оплати. Логування і тд.
-        pass
-
-    @staticmethod
-    @router.callback_query(F.data.startswith("subscription_group"))
-    async def listening(callback_query: types.CallbackQuery):
-        """
-        Обробка кнопок підписки на групу.
-        startswith("subscription_group")
-        """
-        owner_chat_id = callback_query.from_user.id
-        group_chat_id = callback_query.data.split(':')[-1]
-        duration_days = int(callback_query.data.split(':')[-2])
-        type_subscribe = callback_query.data.split(':')[-3]  # trial, auction, ads
-
-        current_time = time.time()
-        chat_subscription = await GroupSubscriptionPlanService.get_subscription(group_chat_id)
-
-        if type_subscribe == GroupTypeSubscription.FREE_TRIAL:
-            if chat_subscription.free_trial > 0:
-                await callback_query.message.edit_text(
-                    text=_("Пробний період вже було використано."),
-                    reply_markup=admin_menu_kb.as_markup()
-                )
-                return None
-
-            await SubscriptionGroupHandler.create_task_subscribe_is_ending(owner_chat_id, group_chat_id,
-                                                                           GroupTypeSubscription.FREE_TRIAL,
-                                                                           duration_days)
-            await GroupSubscriptionPlanService.update_group_subscription_sql(group_chat_id,
-                                                                             free_trial=current_time + duration_days * 86400)
-            await callback_query.message.edit_text(
-                text=_("Пробний період активовано на {days} днів.").format(days=duration_days),
-                reply_markup=admin_menu_kb.as_markup()
-            )
+    await create_task_subscribe_is_ending(owner_chat_id, group_chat_id,
+                                          GroupTypeSubscription.FREE_TRIAL,
+                                          duration_days)
+    await GroupSubscriptionPlanService.update_group_subscription_sql(group_chat_id,
+                                                                     free_trial=time.time() + duration_days * 86400)
+    await callback_query.message.edit_text(
+        text=_("Пробний період активовано на {days} днів у групі {group_name}.").format(days=duration_days,
+                                                                                        group_name=chat_subscription.group.chat_name),
+        reply_markup=admin_menu_kb.as_markup()
+    )
 
 
 @router.callback_query(F.data == 'monetization')
