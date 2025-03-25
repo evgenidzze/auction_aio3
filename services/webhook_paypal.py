@@ -5,7 +5,8 @@ from fastapi import FastAPI, Request
 from requests.auth import HTTPBasicAuth
 
 from services.paypal_event_handlers import handle_onboarding_completed, handle_payment_completed
-from utils.config import PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET
+from utils.config import PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET, DEV_ID
+from utils.create_bot import bot
 from utils.paypal import api_domain
 
 
@@ -28,7 +29,7 @@ def create_webhook(url):
 
 
 def check_webhook():
-    # create_webhook('https://3146-62-80-185-106.ngrok-free.app')
+    # create_webhook('https://79ab-62-80-185-106.ngrok-free.app')
     headers = {
         "Content-Type": "application/json",
     }
@@ -55,6 +56,9 @@ async def paypal_webhook(request: Request):
     resource = payload.get("resource", {})
     handler = EVENT_HANDLERS.get(event_type)
     if handler:
-        await handler(resource)
+        try:
+            await handler(resource)
+        except Exception as err:
+            await bot.send_message(chat_id=DEV_ID, text=err)
     else:
         return {"status": f"Event `{event_type}` ignored"}
