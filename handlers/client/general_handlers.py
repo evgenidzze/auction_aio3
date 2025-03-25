@@ -1,23 +1,25 @@
 import datetime
 import locale
 import logging
-
+import time
 from aiogram import Router, types, F
 from aiogram.filters import CommandStart, Command, CommandObject, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-
 import keyboards.client_kb as client_kb
 from database.services.advertisement_service import AdvertisementService
 from database.services.group_channel_service import GroupChannelService
+from database.services.group_subscription_plan_service import GroupSubscriptionPlanService
 from database.services.lot_service import LotService
 from database.services.user_group_service import UserGroupService
 from database.services.user_service import UserService
+from utils.config import USER_ADV_SUBSCRIPTION_PRICE
 from utils.create_bot import scheduler, _, i18n, bot
-from utils.utils import IsPrivateChatFilter, send_post, user_sub_time_remain, \
-    send_advert, add_user_group_handler, deeplink_handler, UserTypeSubscription
+from utils.paypal import create_order, user_is_merchant_api
+from utils.utils import IsPrivateChatFilter, send_post, \
+    send_advert, add_user_group_handler, deeplink_handler, payment_link_generate, token_is_active, \
+    get_func_subscription_data
 
 locale.setlocale(locale.LC_ALL, 'uk_UA.utf8')
 
@@ -32,7 +34,7 @@ class FSMClient(StatesGroup):
     repost_count_answer = State()
     new_desc_exist = State()
     change_ad = State()
-    adv_sub_seconds = State()
+    # adv_sub_seconds = State()
     change_media_ad = State()
     city_ad = State()
     media_ad = State()
@@ -128,25 +130,56 @@ async def other_channels_groups(call: types.CallbackQuery, **kwargs):
 async def my_channels_groups(call: types.CallbackQuery, state: FSMContext, **kwargs):
     my_chats = await UserGroupService.get_user_groups(call.from_user.id)
     await state.set_state(FSMClient.my_group)
-    kb = InlineKeyboardMarkup(
-        inline_keyboard=[[InlineKeyboardButton(text=chat.group.chat_name, callback_data=chat.group.chat_id)] for
-                         chat in
-                         my_chats])
-    kb.inline_keyboard.extend([[client_kb.back_group_channels_btn]])
-    await call.message.edit_text(text=_('Список груп у яких працює бот:'),
-                                 reply_markup=kb)
+    kb = InlineKeyboardBuilder()
+    for chat in my_chats:
+        kb.button(text=chat.group.chat_name, callback_data=chat.group.chat_id)
+    kb.add(client_kb.back_group_channels_btn)
+    kb.adjust(1)
+    await call.message.edit_text(text=_('Список збережених груп у яких працює бот:'),
+                                 reply_markup=kb.as_markup())
 
 
 @router.callback_query(FSMClient.my_group)
 async def my_group_settings(call: types.CallbackQuery, state: FSMContext):
     await state.set_state(None)
     await state.update_data(my_group=call.data)
+    group_subscription = await GroupSubscriptionPlanService.get_subscription(call.data)
     user_group = await UserGroupService.get_user_group(call.from_user.id, call.data)
-    adv_time = await user_sub_time_remain(call.from_user.id, group_id=call.data,
-                                          func_type=UserTypeSubscription.ADVERTISEMENT)
-    text = _("")
-    await call.message.edit_text(text='Показати інфу про групу (статуси, підписки і т д)',
-                                 reply_markup=client_kb.client_group_kb.as_markup())
+    user_times = await get_func_subscription_data(call.from_user.id, call.data, group_subscription, user_group)
+
+    text = ''
+    kb = InlineKeyboardBuilder()
+    payment_url = None
+    for name, func_data in user_times.items():
+        user_time = func_data.get('user')
+        group_time = func_data.get('group')
+        is_free = func_data.get('is_free')
+        token = func_data.get('token')
+        price = func_data.get('price')
+        category = func_data.get('category')
+        token_column = func_data.get('token_column')
+
+        if user_time > 0 or group_subscription.free_trial > time.time() or is_free:
+            text += _('✅ Функцію "{name}" - активовано\n').format(name=name)
+        elif user_time <= 0 and group_time <= 0:
+            text += _('❌ Функцію "{name}" не активовано, адміністратор групи не оформив підписку.\n').format(name=name)
+        else:
+            text += _('❌ Функцію "{name}" не активовано, оформіть підписку, щоб викласти публікацію.\n').format(name=name.lower())
+            if not token or not await token_is_active(token):
+                group_owner_merchant_id = await user_is_merchant_api(user_group.group.owner_telegram_id)
+                token = await create_order(usd=USER_ADV_SUBSCRIPTION_PRICE, merchant_id=group_owner_merchant_id,
+                                           payer_tg_id=call.from_user.id, category=category,
+                                           group_id=group_subscription.group_fk)
+                await UserGroupService.update_user_group(call.from_user.id, group_id=call.data, **{token_column: token})
+            payment_url = await payment_link_generate(token)
+            kb.button(text=_('Оплатити "{name}" {func_price}$').format(name=name, func_price=price), url=payment_url)
+    if payment_url:
+        text += _('\n<b>💲 Вартість підписки 15$ на 30 днів.</b>\n'
+                  'Оплатіть підписку натиснувши на кнопку нижче 👇')
+    kb.button(text='Видалити групу зі списку', callback_data='del_client_group')
+    kb.button(text='« Назад', callback_data='my_channels_groups')
+    kb.adjust(1)
+    await call.message.edit_text(text=text, reply_markup=kb.as_markup())
 
 
 @router.callback_query(F.data == 'del_client_group')
