@@ -21,6 +21,7 @@ class UserGroup(Base):
     advert_subscribe_time: Mapped[int] = mapped_column(nullable=False, default='0')
     auction_subscribe_time: Mapped[int] = mapped_column(nullable=False, default='0')
     user_adv_token: Mapped[str] = mapped_column(type_=String(255), nullable=True, unique=True)
+    user_auction_token: Mapped[str] = mapped_column(type_=String(255), nullable=True, unique=True)
 
 
 def __repr__(self):
