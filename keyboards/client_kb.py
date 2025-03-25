@@ -20,6 +20,7 @@ add_menu_kb = InlineKeyboardMarkup(inline_keyboard=[[create_advert_btn], [my_ads
 back_to_main_btn = InlineKeyboardButton(text='« Назад', callback_data='main_menu')
 # back_to_messages = InlineKeyboardButton(text='« Назад', callback_data='chats')
 back_to_auction_btn = InlineKeyboardButton(text='« Назад', callback_data='auction')
+back_to_auction_kb = InlineKeyboardMarkup(inline_keyboard=[[back_to_auction_btn]])
 
 auction_kb = InlineKeyboardMarkup(
     inline_keyboard=[[create_auction_btn], [my_auctions_btn], [anti_sniper_btn], [back_to_main_btn]])
@@ -122,7 +123,7 @@ back_to_ad_menu_btn = InlineKeyboardButton(text='« Назад', callback_data='
 reset_to_ad_menu_kb = InlineKeyboardMarkup(inline_keyboard=[[reset_to_ad_menu_btn]])
 back_to_ad_menu_kb = InlineKeyboardMarkup(inline_keyboard=[[back_to_ad_menu_btn]])
 
-my_channels_groups = InlineKeyboardButton(text='Мої групи', callback_data='my_channels_groups')
+my_channels_groups = InlineKeyboardButton(text='Збережені групи', callback_data='my_channels_groups')
 other_channels_groups = InlineKeyboardButton(text='Всі групи', callback_data='other_channels_groups')
 group_channels_kb = InlineKeyboardMarkup(
     inline_keyboard=[[my_channels_groups], [other_channels_groups], [back_to_main_btn]])
@@ -136,10 +137,7 @@ help_btn = InlineKeyboardButton(text='🆘 Допомога', callback_data='hel
 group_channels_btn = InlineKeyboardButton(text='👥 Групи та канали', callback_data='groups_and_channels')
 back_to_main_btn = InlineKeyboardButton(text='« Назад', callback_data='main_menu')
 main_kb = InlineKeyboardMarkup(
-    inline_keyboard=[[auction_btn, create_advert_btn], [group_channels_btn], [pro_sub_btn],
+    inline_keyboard=[[auction_btn, create_advert_btn], [group_channels_btn],
                      [help_btn]])
 
-client_group_kb = InlineKeyboardBuilder()
-client_group_kb.button(text='Видалити зі списку', callback_data='del_client_group')
-client_group_kb.button(text='« Назад', callback_data='my_channels_groups')
-client_group_kb.adjust(1)
+
