@@ -20,10 +20,9 @@ from keyboards.admin_kb import back_to_admin_btn, \
 from keyboards.client_kb import main_kb
 from utils.paypal import create_partner_referral_url_and_token, user_is_merchant_api
 from utils.utils import \
-    generate_chats_kb, create_monetization_text_and_kb, get_tokens_and_finish_dates, GroupTypeSubscription
+    generate_chats_kb, create_monetization_text_and_kb, get_tokens_and_finish_dates, GroupTypeSubscription, \
+    create_task_subscribe_is_ending
 
-from utils.create_bot import scheduler
-from apscheduler.jobstores.base import JobLookupError
 
 router = Router()
 
@@ -156,7 +155,7 @@ async def paid_chat_function(call: types.CallbackQuery, state: FSMContext):
 @router.callback_query(F.data == 'add_group')
 async def add_group(call: types.CallbackQuery):
     me = await bot.get_me()
-    await call.message.edit_text(text='Додайте бота у свою групу, та надайте йому права адміністратора.\n'
+    await call.message.edit_text(text='Додайте бота у свою групу, та надайте йому дозвіл на відправку повідомлень.\n'
                                       "Ім'я бота: @{bot_name}".format(bot_name=me.username),
                                  reply_markup=InlineKeyboardMarkup(inline_keyboard=[[back_to_admin_btn]]))
 
@@ -182,8 +181,9 @@ async def user_chat_menu(call: types.CallbackQuery, state: FSMContext):
     chat_subscription = await GroupSubscriptionPlanService.get_subscription(group_id)
     if chat_subscription.free_trial > time.time():
         days = (datetime.datetime.fromtimestamp(chat_subscription.free_trial) - datetime.datetime.now()).days
-        text = _('Активований пробний період.\n'
-                 'До кінця залишилось {days} днів').format(days=days)
+        text = _('✅ Активований пробний період.\n'
+                 'До кінця залишилось {days} днів\n\n'
+                 'У пробний період входить повний функціонал аукціонів та оголошень.').format(days=days)
         builder = InlineKeyboardBuilder()
         builder.add(back_to_admin_btn)
         kb = builder.as_markup()
@@ -350,40 +350,6 @@ class SubscriptionGroupHandler:
                 text=_("Пробний період активовано на {days} днів.").format(days=duration_days),
                 reply_markup=admin_menu_kb.as_markup()
             )
-
-        # elif type_subscribe == GroupTypeSubscription.AUCTION:
-        #     if await SubscriptionGroupHandler.payment_process(owner_chat_id, group_chat_id,
-        #                                                       GroupTypeSubscription.AUCTION, duration_days):
-        #         return None
-        #     await SubscriptionGroupHandler.create_task_subscribe_is_ending(owner_chat_id, group_chat_id,
-        #                                                                    GroupTypeSubscription.AUCTION,
-        #                                                                    duration_days)
-        #     auction_update_duration = max(chat_subscription.auction_sub_time, current_time) + duration_days * 86400
-        #
-        #     await GroupSubscriptionPlanService.update_group_subscription_sql(group_chat_id,
-        #                                                                      auction_sub_time=auction_update_duration,
-        #                                                                      auction_paid=True)
-        #     await callback_query.message.edit_text(
-        #         text=_("Підписка на аукціон активована на {days} днів.").format(days=duration_days),
-        #         reply_markup=admin_menu_kb.as_markup()
-        #     )
-        #
-        # elif type_subscribe == GroupTypeSubscription.ADVERTISEMENT:
-        #     if await SubscriptionGroupHandler.payment_process(owner_chat_id, group_chat_id,
-        #                                                       GroupTypeSubscription.ADVERTISEMENT,
-        #                                                       duration_days):
-        #         return None
-        #     await SubscriptionGroupHandler.create_task_subscribe_is_ending(owner_chat_id, group_chat_id,
-        #                                                                    GroupTypeSubscription.ADVERTISEMENT,
-        #                                                                    duration_days)
-        #     ads_update_duration = max(chat_subscription.ads_sub_time, current_time) + duration_days * 86400
-        #     await GroupSubscriptionPlanService.update_group_subscription_sql(group_chat_id,
-        #                                                                      ads_sub_time=ads_update_duration,
-        #                                                                      ads_paid=True)
-        #     await callback_query.message.edit_text(
-        #         text=_("Підписка на оголошення активована на {days} днів.").format(days=duration_days),
-        #         reply_markup=admin_menu_kb.as_markup()
-        #     )
 
 
 @router.callback_query(F.data == 'monetization')
