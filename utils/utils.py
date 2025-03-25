@@ -1,7 +1,6 @@
 import datetime
 import logging
 import time
-from enum import Enum
 from typing import List, Literal, Tuple
 from aiogram import types
 from aiogram.enums import ContentType, ChatType
@@ -10,6 +9,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.deep_linking import create_start_link
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.utils.media_group import MediaGroupBuilder
+from apscheduler.jobstores.base import JobLookupError
 
 import database.models.advertisement
 import database.models.lot
@@ -22,10 +22,10 @@ from database.services.group_subscription_plan_service import GroupSubscriptionP
 from database.services.lot_service import LotService
 from database.services.user_group_service import UserGroupService
 from database.services.user_service import UserService
-from utils.core_types import UserTypeSubscription, GroupTypeSubscription, AdminProductCategory
+from utils.core_types import UserTypeSubscription, GroupTypeSubscription, AdminProductCategory, ClientProductCategory
 from utils.create_bot import bot, scheduler
 from keyboards.client_kb import decline_lot_btn, accept_lot_btn, back_to_main_btn, main_kb
-from utils.config import GALLERY_CHANNEL
+from utils.config import GALLERY_CHANNEL, USER_AUCTION_SUBSCRIPTION_PRICE, USER_ADV_SUBSCRIPTION_PRICE
 from utils.paypal import create_order, get_order_status
 from utils.create_bot import _
 
@@ -489,12 +489,15 @@ async def create_monetization_text_and_kb(subscription: GroupSubscriptionPlan, c
             kb_builder.button(text=f'Активувати платні {name}',
                               callback_data=f'paid:{type_}:activate:{chat_id}')
             text += f'🔴 Платні {name} не активовані\n'
-
+        elif subscription.free_trial > time.time():
+            text += '⚠️ Монетизація під час пробного періоду недоступна.'
+            break
         else:
             if my_channels_groups_btn not in kb_builder.buttons:
                 kb_builder.add(my_channels_groups_btn)
             text += (f'🔒 Функція <b>{func_name}</b> не активована. Активувати функцію можна у меню '
                      f'<b>⚙️\u00A0Функціонал</b>\n\n')
+
     kb_builder.add(back_to_monetization)
     kb_builder.adjust(1)
     return text, kb_builder.as_markup()
@@ -520,7 +523,7 @@ async def get_tokens_and_finish_dates(group_id, chat_subscription: GroupSubscrip
             if not token or not await token_is_active(token):
                 order_category = await AdminProductCategory.get_by_func_type(func_type=func_type)
                 token = await create_order(usd=1, payer_tg_id=payer_tg_id, category=order_category,
-                                               group_id=group_id)
+                                           group_id=group_id)
                 await GroupSubscriptionPlanService.update_group_subscription_sql(chat_id=group_id,
                                                                                  **{f'{func_type}_token': token})
             function_tokens[func_type] = token
@@ -558,3 +561,65 @@ async def deeplink_handler(main_menu, message, command, state, kwargs):
             await main_menu(message, state, **kwargs)
             return True
     return False
+
+
+async def get_func_subscription_data(user_id, group_id, group_subscription, user_group):
+    user_ads_time = await user_sub_time_remain(user_id=user_id, group_id=group_id,
+                                               func_type=UserTypeSubscription.ADVERTISEMENT)
+    user_auction_time = await user_sub_time_remain(user_id=user_id, group_id=group_id,
+                                                   func_type=UserTypeSubscription.AUCTION)
+
+    group_ads_time = group_subscription.ads_sub_time - time.time()
+    group_auction_time = group_subscription.auction_sub_time - time.time()
+
+    return {
+        _('Аукціон'): {
+            'group': group_auction_time,
+            'user': user_auction_time,
+            'is_free': not group_subscription.auction_paid,
+            'token': user_group.user_auction_token,
+            'price': USER_AUCTION_SUBSCRIPTION_PRICE,
+            'category': ClientProductCategory.AUCTION,
+            'token_column': 'user_auction_token'
+        },
+        _('Оголошення'): {
+            'group': group_ads_time,
+            'user': user_ads_time,
+            'is_free': not group_subscription.ads_paid,
+            'token': user_group.user_adv_token,
+            'price': USER_ADV_SUBSCRIPTION_PRICE,
+            'category': ClientProductCategory.ADVERTISEMENT,
+            'token_column': 'user_adv_token'
+        }
+    }
+
+
+async def create_task_subscribe_is_ending(owner_chat_id, group_chat_id: str,
+                                          type_subscription: GroupTypeSubscription,
+                                          duration_days: int):
+    """Створення задачі на попередження про закінчення групової підписки."""
+    try:
+        scheduler.remove_job(f'subscribe:{group_chat_id}')
+    except JobLookupError:
+        pass
+
+    current_time = time.time()
+    scheduler.add_job(
+        scheduled_job_subscribe_is_ending,
+        'date',
+        run_date=datetime.datetime.fromtimestamp(current_time + duration_days * 86400 - 86400),
+        args=[owner_chat_id, type_subscription],
+        id=f'subscribe:{group_chat_id}'
+    )
+
+
+async def scheduled_job_subscribe_is_ending(owner_id: str, type_subscription: GroupTypeSubscription):
+    """Повідомлення про закінчення групової підписки власнику за добу."""
+    message = {
+        GroupTypeSubscription.ADVERTISEMENT: _(
+            'Ваша підписка на оголошення добігає кінця. Поповніть підписку.'),
+        GroupTypeSubscription.AUCTION: _('Ваша підписка на аукціон добігає кінця. Поповніть підписку.'),
+        GroupTypeSubscription.FREE_TRIAL: _('Ваш пробний період добігає кінця. Поповніть підписку.'),
+    }
+    text = message.get(type_subscription)
+    await bot.send_message(chat_id=owner_id, text=text)
