@@ -36,7 +36,7 @@ async def group_payment_kb(auction_token, ads_token, group_id, free_trial):
         builder.button(text='🔑 Підписка на оголошення (1 місяць)', url=ads_payment_url)
     if free_trial == 0:
         builder.button(text='🔑 Пробний період (14 днів)',
-                       callback_data=f'subscription_group:{GroupTypeSubscription.FREE_TRIAL}:14:{group_id}')
+                       callback_data=f'free_trial:{group_id}')
     builder.add(back_my_channels_groups)
     builder.adjust(1)
 
