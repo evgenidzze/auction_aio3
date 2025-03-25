@@ -91,10 +91,10 @@ class GroupChannelService:
 
             # додаємо запис тарифу у GroupSubscriptionPlan
             await GroupSubscriptionPlanService.create_subscription(chat_id=chat_id, auction_sub_time=0,
-                                                                   auction_paid=False,
+                                                                   auction_paid=True,
                                                                    auction_token=None,
                                                                    ads_sub_time=0,
-                                                                   ads_paid=False,
+                                                                   ads_paid=True,
                                                                    ads_token=None,
                                                                    free_trial=0)
 
