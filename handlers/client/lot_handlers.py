@@ -1,4 +1,5 @@
 import datetime
+import time
 from copy import deepcopy
 from typing import Union
 
@@ -8,22 +9,23 @@ from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.types import InlineKeyboardMarkup
 
-import database.models.advertisement
 import database.models.lot
 import keyboards.client_kb as client_kb
 from database.services.base import delete_record_by_id
 from database.services.group_channel_service import GroupChannelService
+from database.services.group_subscription_plan_service import GroupSubscriptionPlanService
 from database.services.lot_service import LotService
 from database.services.user_group_service import UserGroupService
 from database.services.user_service import UserService
-from handlers.client.general_handlers import FSMClient
-from handlers.middleware import require_username, UserNotBlockedFilter, create_user_group
+from handlers.client.general_handlers import FSMClient, my_group_settings
+from handlers.middleware import require_username, UserNotBlockedFilter, create_user_group, UserNotBlocked
 from utils.aiogram_media_group import media_group_handler
 from utils.config import DEV_ID
+from utils.core_types import UserTypeSubscription
 from utils.create_bot import scheduler, _, bot
 from utils.utils import create_user_lots_kb, IsMessageType, generate_chats_kb, \
     gather_media_from_messages, is_media_count_allowed, send_post_fsm, send_post, new_bid_caption, lot_ending, \
-    create_lot_caption_and_kb
+    create_lot_caption_and_kb, user_sub_time_remain
 
 router = Router()
 
@@ -63,14 +65,17 @@ async def lot_group(call: types.CallbackQuery, state: FSMContext, **kwargs):
 @router.callback_query(FSMClient.lot_group_id)
 async def ask_city(call: types.CallbackQuery, state: FSMContext, **kwargs):
     await state.update_data(lot_group_id=call.data)
-    user_group = await UserGroupService.get_user_group(call.from_user.id, call.data)
-    if user_group and user_group.is_blocked:
-        await bot.send_message(chat_id=call.from_user.id, text=_('Вас було заблоковано за порушення правил.'))
+    user_sub_time = await user_sub_time_remain(call.from_user.id,
+                                               group_id=call.data,
+                                               func_type=UserTypeSubscription.AUCTION)
+    group_subscription = await GroupSubscriptionPlanService.get_subscription(call.data)
+    if user_sub_time > 0 or not group_subscription.auction_paid:  # в юзера є підписка або оголошення безкоштовні
+        await state.set_state(FSMClient.city)
+        await call.message.edit_text(text=_('🌆 Вкажіть ваше місто:'),
+                                     reply_markup=client_kb.reset_to_auction_menu_kb)
+    else:
+        await my_group_settings(call, state)
         return
-    await state.set_state(FSMClient.city)
-    await call.message.edit_text(text=_('🌆 Вкажіть ваше місто:'),
-
-                                 reply_markup=client_kb.reset_to_auction_menu_kb)
 
 
 @router.message(FSMClient.city)
