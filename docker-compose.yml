@@ -1,4 +1,12 @@
 services:
+  aiohttp-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.app
+    container_name: aiohttp-server
+    restart: always
+    ports:
+      - "8080:8080"
   redis:
     image: redis:7.2
     container_name: redis
@@ -7,7 +15,15 @@ services:
       - "6379:6379"
     env_file:
       - .env
-    command: [ "redis-server", "--requirepass", "${REDIS_PASSWORD}" ]
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD}
+      --appendonly yes
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+    volumes:
+      - redis-data:/data
     networks:
       - app-tier
   db:
@@ -34,6 +50,7 @@ services:
     depends_on:
       - db
       - redis
+      - aiohttp-server
     volumes:
       - .:/app
     networks:
@@ -64,6 +81,7 @@ services:
       - app-tier
 volumes:
   my-db:
+  redis-data:
 networks:
   app-tier:
     driver: bridge
